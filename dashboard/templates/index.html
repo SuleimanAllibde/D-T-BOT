@@ -1,0 +1,755 @@
+{% extends "base.html" %}
+{% block head %}
+<style>
+select.form-input {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23949ba4' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+}
+select.form-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+select.form-input option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+.channel-option { display: flex; align-items: center; gap: 8px; }
+.channel-hash { color: var(--text-muted); }
+</style>
+<script>
+function showToast(msg, type) {
+    const t = document.createElement('div');
+    t.className = 'toast toast-' + type;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+}
+</script>
+{% endblock %}
+{% block content %}
+<!-- ===== OVERVIEW ===== -->
+<div id="tab-overview" class="tab-panel active">
+    <h1>Overview</h1>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-status" id="statusIndicator"></div>
+            <div><span class="stat-label">Bot Status</span><span class="stat-value" id="statStatus">Loading...</span></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-members"></div>
+            <div><span class="stat-label">Members</span><span class="stat-value" id="statMembers">0</span></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-guild"></div>
+            <div><span class="stat-label">Server</span><span class="stat-value" id="statGuild">---</span></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Quick Settings</h2>
+        <form method="POST" action="{{ url_for('update') }}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Welcome Channel</label>
+                    <select name="welcome_channel" id="ovWelcomeChannel" class="form-input"></select>
+                </div>
+                <div class="form-group">
+                    <label>Log Channel</label>
+                    <select name="log_channel" id="ovLogChannel" class="form-input"></select>
+                </div>
+                <div class="form-group">
+                    <label>Auto-Role</label>
+                    <select name="auto_role" id="ovAutoRole" class="form-input"></select>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Quick Settings</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>Quick Commands</h2>
+        <ul class="command-list">
+            <li><code>/setup-tickets</code> — Create ticket panel</li>
+            <li><code>/set-autorole &lt;role&gt;</code> — Set default join role</li>
+            <li><code>/reaction-role &lt;role1&gt; ...</code> — Reaction roles</li>
+            <li><code>/clear &lt;amount&gt;</code> — Purge messages</li>
+            <li><code>/kick /ban /mute /unmute</code> — Moderate</li>
+        </ul>
+    </div>
+
+    <div class="card" style="border:1px solid var(--red);">
+        <h2 style="color:var(--red);">⚠️ Diagnostics</h2>
+        <button onclick="runDiagnostics()" class="btn btn-danger">Run Diagnostics</button>
+        <pre id="diagOutput" style="margin-top:12px;background:var(--bg-input);padding:12px;border-radius:8px;font-size:12px;max-height:300px;overflow:auto;display:none;"></pre>
+    </div>
+</div>
+
+<!-- ===== WELCOMER ===== -->
+<div id="tab-welcomer" class="tab-panel">
+    <h1>Welcomer &amp; Leaver</h1>
+    <form method="POST" action="{{ url_for('api_welcomer') }}" enctype="multipart/form-data">
+        <div class="card">
+            <div class="toggle-row">
+                <span>Enable Welcome System</span>
+                <label class="switch"><input type="checkbox" name="welcome_enabled" id="welEnabled"><span class="slider"></span></label>
+            </div>
+            <div class="form-group">
+                <label>Welcome Channel</label>
+                <select name="welcome_channel_id" id="welChannel" class="form-input"></select>
+            </div>
+            <div class="form-group">
+                <label>Welcome Message <small>Use {user}, {server}, {member_count}, {username}, {display_name}</small></label>
+                <textarea name="welcome_message" id="welMessage" rows="3" placeholder="Welcome {user} to **{server}**!"></textarea>
+            </div>
+        </div>
+        <div class="card" style="border:1px solid var(--border);">
+                <h2>🎨 Avatar Position</h2>
+                <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px;">
+                    Drag the avatar to position it. Drag the <strong>↘</strong> handle to resize.
+                </p>
+                <div id="canvasWrapper" style="position:relative;width:100%;max-width:800px;border-radius:8px;overflow:hidden;border:2px solid var(--border);background:#202225;user-select:none;aspect-ratio:1296/864;">
+                    <img id="canvasBg" src="/api/bg" alt="Background" style="display:block;width:100%;height:100%;pointer-events:none;object-fit:fill;">
+                    <div id="canvasAvatar" style="position:absolute;cursor:move;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,0.5),0 0 12px rgba(0,0,0,0.4);pointer-events:auto;z-index:5;">
+                        <div id="canvasAvatarInner" style="width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,#5865F2,#4752C4);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;font-family:sans-serif;">A</div>
+                        <div id="resizeHandle" style="position:absolute;bottom:-8px;right:-8px;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid #5865F2;cursor:nwse-resize;box-shadow:0 0 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;color:#5865F2;z-index:6;">↘</div>
+                    </div>
+                </div>
+                <div style="margin-top:10px;font-size:13px;color:var(--text-muted);">
+                    X: <strong id="dispX">80</strong> &nbsp;|&nbsp;
+                    Y: <strong id="dispY">86</strong> &nbsp;|&nbsp;
+                    Size: <strong id="dispSize">128</strong>
+                </div>
+                <input type="hidden" name="avatar_x" id="welAvatarX" value="80">
+                <input type="hidden" name="avatar_y" id="welAvatarY" value="86">
+                <input type="hidden" name="avatar_size" id="welAvatarSize" value="128">
+            </div>
+        <div class="card">
+            <div class="toggle-row">
+                <span>Enable Leave System</span>
+                <label class="switch"><input type="checkbox" name="leave_enabled" id="leaveEnabled"><span class="slider"></span></label>
+            </div>
+            <div class="form-group">
+                <label>Leave Channel</label>
+                <select name="leave_channel_id" id="leaveChannel" class="form-input"></select>
+            </div>
+            <div class="form-group">
+                <label>Leave Message <small>Use {user}, {server}, {member_count}</small></label>
+                <textarea name="leave_message" id="leaveMessage" rows="3" placeholder="{user} has left {server}."></textarea>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Welcomer Settings</button>
+    </form>
+</div>
+
+<!-- ===== AUTO-RESPONDER ===== -->
+<div id="tab-autoresponder" class="tab-panel">
+    <h1>Auto-Responder</h1>
+    <div class="card">
+        <h2>Add Trigger</h2>
+        <form method="POST" action="{{ url_for('api_autoresponder_add') }}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Trigger Word</label>
+                    <input type="text" name="trigger" placeholder="e.g. hi" required>
+                </div>
+                <div class="form-group">
+                    <label>Bot Response</label>
+                    <input type="text" name="response" placeholder="e.g. Hello there!" required>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Add Trigger</button>
+        </form>
+    </div>
+    <div class="card">
+        <h2>Existing Triggers</h2>
+        <table class="data-table" id="arTable">
+            <thead><tr><th>Trigger</th><th>Response</th><th>Action</th></tr></thead>
+            <tbody id="arBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== AUTOMOD ===== -->
+<div id="tab-automod" class="tab-panel">
+    <h1>AutoMod Settings</h1>
+    <form method="POST" action="{{ url_for('api_automod') }}">
+        <div class="card">
+            <div class="toggle-row">
+                <span>Anti Bad Words</span>
+                <label class="switch"><input type="checkbox" name="anti_bad_words" id="abw"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+                <span>Anti Links</span>
+                <label class="switch"><input type="checkbox" name="anti_links" id="al"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+                <span>Anti Spam</span>
+                <label class="switch"><input type="checkbox" name="anti_spam" id="as"><span class="slider"></span></label>
+            </div>
+        </div>
+        <div class="card">
+            <h2>Penalty &amp; Bypass</h2>
+            <div class="form-group">
+                <label>Penalty Action</label>
+                <select name="automod_penalty" id="amPenalty" class="form-input">
+                    <option value="mute">Mute</option>
+                    <option value="kick">Kick</option>
+                    <option value="ban">Ban</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Bypass Roles <small>(comma-separated role IDs)</small></label>
+                <input type="text" name="automod_bypass_roles" id="amBypass" placeholder="Role IDs">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Save AutoMod Settings</button>
+    </form>
+</div>
+
+<!-- ===== SENDER ===== -->
+<div id="tab-embed" class="tab-panel">
+    <h1>Message &amp; Embed Sender</h1>
+    <!-- Regular Message -->
+    <div class="card">
+        <h2>Send a Message</h2>
+        <div class="form-group">
+            <label>Channel</label>
+            <select id="msgChannel" class="form-input"></select>
+        </div>
+        <div class="form-group">
+            <label>Message Content</label>
+            <textarea id="msgContent" rows="4" placeholder="Type your message here..."></textarea>
+        </div>
+        <button onclick="sendMessage()" class="btn btn-primary">Send Message</button>
+    </div>
+    <!-- Embed -->
+    <div class="card">
+        <h2>Send an Embed</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Channel</label>
+                <select id="embedChannel" class="form-input"></select>
+            </div>
+            <div class="form-group">
+                <label>Color (Hex)</label>
+                <input type="text" id="embedColor" value="#5865F2" placeholder="#5865F2">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Title</label>
+            <input type="text" id="embedTitle" placeholder="Embed title">
+        </div>
+        <div class="form-group">
+            <label>Description</label>
+            <textarea id="embedDesc" rows="4" placeholder="Embed description..."></textarea>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Thumbnail URL</label>
+                <input type="text" id="embedThumb" placeholder="https://...">
+            </div>
+            <div class="form-group">
+                <label>Footer</label>
+                <input type="text" id="embedFooter" placeholder="Footer text">
+            </div>
+        </div>
+        <div class="card preview-card" id="embedPreview">
+            <div class="embed-preview">
+                <div class="embed-color-bar" style="background:#5865F2" id="previewBar"></div>
+                <div class="embed-body">
+                    <strong id="previewTitle">Title</strong>
+                    <p id="previewDesc">Description</p>
+                    <div class="embed-footer" id="previewFooter">Footer</div>
+                </div>
+                <img id="previewThumb" class="embed-thumb" style="display:none" alt="thumb">
+            </div>
+        </div>
+        <button onclick="sendEmbed()" class="btn btn-primary">Send Embed</button>
+    </div>
+</div>
+
+<!-- ===== TICKETS ===== -->
+<div id="tab-tickets" class="tab-panel">
+    <h1>Ticket System Manager</h1>
+    <form method="POST" action="{{ url_for('api_tickets_settings') }}">
+        <div class="card">
+            <div class="toggle-row">
+                <span>Enable Ticket System</span>
+                <label class="switch"><input type="checkbox" name="ticket_enabled" id="tktEnabled"><span class="slider"></span></label>
+            </div>
+            <div class="form-group">
+                <label>Panel Title</label>
+                <input type="text" name="ticket_panel_title" id="tktTitle" placeholder="🎫 Support Tickets">
+            </div>
+            <div class="form-group">
+                <label>Panel Description</label>
+                <textarea name="ticket_panel_desc" id="tktDesc" rows="2" placeholder="Click the button below to open a ticket."></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Button Text</label>
+                    <input type="text" name="ticket_button_text" id="tktBtn" placeholder="Open Ticket">
+                </div>
+                <div class="form-group">
+                    <label>Embed Color (Hex)</label>
+                    <input type="text" name="ticket_embed_color" id="tktColor" placeholder="#5865F2">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Ticket Category</label>
+                    <select name="ticket_category_id" id="tktCat" class="form-input"></select>
+                </div>
+                <div class="form-group">
+                    <label>Support Role</label>
+                    <select name="ticket_support_role_id" id="tktRole" class="form-input"></select>
+                </div>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Ticket Settings</button>
+    </form>
+
+    <div class="card">
+        <h2>Panel Channel &amp; Deployment</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Panel Channel</label>
+                <select id="panelChannel" class="form-input"></select>
+            </div>
+        </div>
+        <button onclick="sendTicketPanel()" class="btn btn-primary">🚀 Send Panel to Channel</button>
+        <p style="color:var(--text-muted);font-size:13px;margin-top:8px;">This will send (or update) the ticket open button in the selected channel.</p>
+    </div>
+
+    <div class="card">
+        <h2>Active Tickets</h2>
+        <table class="data-table">
+            <thead><tr><th>Channel</th><th>User</th><th>Opened</th><th>Action</th></tr></thead>
+            <tbody id="ticketBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ===== LOGS ===== -->
+<div id="tab-logs" class="tab-panel">
+    <h1>Recent Logs</h1>
+    <div class="card">
+        <table class="data-table">
+            <thead><tr><th>Time</th><th>Event</th><th>Description</th></tr></thead>
+            <tbody id="logsBody"></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ---- Populate dropdowns ----
+async function populateSelect(url, selectId, selectedId, noneLabel) {
+    try {
+        const r = await fetch(url);
+        if (!r.ok) { console.error('populateSelect error:', url, r.status); return; }
+        const data = await r.json();
+        const sel = document.getElementById(selectId);
+        if (!sel) return;
+        // data could be an array (channels) or an object with error key
+        const items = Array.isArray(data) ? data : [];
+        if (!Array.isArray(data)) console.warn('populateSelect', selectId, ':', data);
+        let html = '<option value="">' + (noneLabel || '— None / Disabled —') + '</option>';
+        items.forEach(item => {
+            const selected = (String(item.id) === String(selectedId)) ? 'selected' : '';
+            html += '<option value="' + item.id + '" ' + selected + '>#' + escHtml(item.name) + '</option>';
+        });
+        sel.innerHTML = html;
+        console.log('Populated', selectId, 'with', items.length, 'items');
+    } catch(e) {
+        console.error('populateSelect failed:', selectId, e);
+    }
+}
+
+async function populateRoleSelect(url, selectId, selectedId, noneLabel) {
+    try {
+        const r = await fetch(url);
+        if (!r.ok) { console.error('populateRoleSelect error:', url, r.status); return; }
+        const data = await r.json();
+        const sel = document.getElementById(selectId);
+        if (!sel) return;
+        const items = Array.isArray(data) ? data : [];
+        if (!Array.isArray(data)) console.warn('populateRoleSelect', selectId, ':', data);
+        let html = '<option value="">' + (noneLabel || '— None / Disabled —') + '</option>';
+        items.forEach(item => {
+            const selected = (String(item.id) === String(selectedId)) ? 'selected' : '';
+            html += '<option value="' + item.id + '" ' + selected + '>' + escHtml(item.name) + '</option>';
+        });
+        sel.innerHTML = html;
+        console.log('Populated', selectId, 'with', items.length, 'roles');
+    } catch(e) {
+        console.error('populateRoleSelect failed:', selectId, e);
+    }
+}
+
+async function populateAllDropdowns(settings) {
+    const ch = '/api/guild/channels';
+    const ro = '/api/guild/roles';
+    const ca = '/api/guild/categories';
+
+    await populateSelect(ch, 'ovWelcomeChannel', settings?.welcome_channel_id);
+    await populateSelect(ch, 'ovLogChannel', settings?.log_channel_id);
+    await populateSelect(ch, 'welChannel', settings?.welcome_channel_id);
+    await populateSelect(ch, 'leaveChannel', settings?.leave_channel_id);
+    await populateSelect(ch, 'embedChannel', null, '— Select a channel —');
+    await populateSelect(ch, 'msgChannel', null, '— Select a channel —');
+    await populateSelect(ch, 'panelChannel', settings?.ticket_panel_channel_id, '— Select a channel —');
+
+    await populateRoleSelect(ro, 'ovAutoRole', settings?.auto_role_id);
+    await populateRoleSelect(ro, 'tktRole', null);
+    await populateSelect(ca, 'tktCat', null);
+
+    // Set ticket-specific dropdowns after population
+    if (settings?.ticket_category_id) {
+        const el = document.getElementById('tktCat');
+        if (el) el.value = settings.ticket_category_id;
+    }
+    if (settings?.ticket_support_role_id) {
+        const el = document.getElementById('tktRole');
+        if (el) el.value = settings.ticket_support_role_id;
+    }
+}
+
+// ---- Load settings into forms ----
+async function loadSettings() {
+    let d;
+    try {
+        const r = await fetch('/api/stats');
+        if (!r.ok) { console.error('Stats API returned', r.status); return; }
+        d = await r.json();
+        await populateAllDropdowns(d);
+    } catch(e) {
+        console.error('loadSettings failed:', e);
+        return;
+    }
+
+    // Welcomer
+    const wr = await fetch('/api/welcomer');
+    const w = await wr.json();
+    document.getElementById('welEnabled').checked = w.welcome_enabled;
+    document.getElementById('welMessage').value = w.welcome_message || '';
+    document.getElementById('leaveEnabled').checked = w.leave_enabled;
+    document.getElementById('leaveMessage').value = w.leave_message || '';
+    document.getElementById('welAvatarX').value = w.avatar_x ?? 80;
+    document.getElementById('welAvatarY').value = w.avatar_y ?? 86;
+    document.getElementById('welAvatarSize').value = w.avatar_size ?? 128;
+    setTimeout(syncCanvas, 500);
+
+    // AutoMod
+    document.getElementById('abw').checked = d.anti_bad_words;
+    document.getElementById('al').checked = d.anti_links;
+    document.getElementById('as').checked = d.anti_spam;
+    document.getElementById('amPenalty').value = d.automod_penalty || 'mute';
+    document.getElementById('amBypass').value = d.automod_bypass_roles || '';
+
+    // Tickets
+    const tr = await fetch('/api/tickets/settings');
+    const t = await tr.json();
+    document.getElementById('tktEnabled').checked = t.ticket_enabled;
+    document.getElementById('tktTitle').value = t.ticket_panel_title || '';
+    document.getElementById('tktDesc').value = t.ticket_panel_desc || '';
+    document.getElementById('tktBtn').value = t.ticket_button_text || 'Open Ticket';
+    document.getElementById('tktColor').value = t.ticket_embed_color || '#5865F2';
+}
+
+// ---- Load Auto-Responder list ----
+async function loadAutoResponder() {
+    const r = await fetch('/api/autoresponder');
+    const items = await r.json();
+    const body = document.getElementById('arBody');
+    body.innerHTML = items.map(i => `
+        <tr>
+            <td><code>${escHtml(i.trigger)}</code></td>
+            <td>${escHtml(i.response)}</td>
+            <td>
+                <form method="POST" action="/api/autoresponder/delete/${i.id}" style="display:inline">
+                    <button class="btn btn-sm btn-danger">Delete</button>
+                </form>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// ---- Load active tickets ----
+async function loadTickets() {
+    const r = await fetch('/api/tickets/active');
+    const tickets = await r.json();
+    const body = document.getElementById('ticketBody');
+    body.innerHTML = tickets.map(t => `
+        <tr>
+            <td>#${escHtml(t.channel_name)}</td>
+            <td>${escHtml(t.user_name)}</td>
+            <td>${new Date(t.opened_at).toLocaleString()}</td>
+            <td><button class="btn btn-sm btn-danger" onclick="closeTicket(${t.channel_id})">Close</button></td>
+        </tr>
+    `).join('');
+}
+
+async function closeTicket(channelId) {
+    await fetch('/api/tickets/close/' + channelId, { method: 'POST' });
+    loadTickets();
+    showToast('Ticket closed', 'success');
+}
+
+async function sendTicketPanel() {
+    const sel = document.getElementById('panelChannel');
+    if (!sel.value) {
+        showToast('Please select a channel first', 'error');
+        return;
+    }
+    const form = new FormData();
+    form.append('channel_id', sel.value);
+    const r = await fetch('/api/tickets/send-panel', { method: 'POST', body: form });
+    if (r.ok) showToast('✅ Ticket panel sent!', 'success');
+    else showToast('❌ Failed to send panel', 'error');
+}
+
+// ---- Load logs ----
+async function loadLogs() {
+    const body = document.getElementById('logsBody');
+    try {
+        const lr = await fetch('/api/logs/recent');
+        const entries = await lr.json();
+        body.innerHTML = entries.map(e => `
+            <tr>
+                <td>${new Date(e.timestamp).toLocaleString()}</td>
+                <td>${escHtml(e.event_type)}</td>
+                <td>${escHtml(e.description || '')}</td>
+            </tr>
+        `).join('');
+    } catch(e) {
+        body.innerHTML = '<tr><td colspan="3">No log entries yet.</td></tr>';
+    }
+}
+
+// ---- Canvas Editor ----
+let _dragType = null;
+let _dragStartX = 0, _dragStartY = 0;
+let _startAX = 0, _startAY = 0, _startSize = 0;
+
+function getCanvasScale() {
+    const img = document.getElementById('canvasBg');
+    return img.naturalWidth ? img.clientWidth / 1296 : 1;
+}
+
+function syncCanvas() {
+    const scale = getCanvasScale();
+    const ax = parseInt(document.getElementById('welAvatarX').value) || 80;
+    const ay = parseInt(document.getElementById('welAvatarY').value) || 86;
+    const sz = parseInt(document.getElementById('welAvatarSize').value) || 128;
+    const av = document.getElementById('canvasAvatar');
+    const inner = document.getElementById('canvasAvatarInner');
+    av.style.left = (ax * scale) + 'px';
+    av.style.top = (ay * scale) + 'px';
+    av.style.width = (sz * scale) + 'px';
+    av.style.height = (sz * scale) + 'px';
+    const fontSize = Math.max(12, sz * scale * 0.35);
+    inner.style.fontSize = fontSize + 'px';
+    document.getElementById('dispX').textContent = ax;
+    document.getElementById('dispY').textContent = ay;
+    document.getElementById('dispSize').textContent = sz;
+}
+
+
+
+function onCanvasMouseDown(e) {
+    const target = e.target;
+    if (target.id === 'resizeHandle') {
+        _dragType = 'resize';
+    } else {
+        _dragType = 'drag';
+    }
+    _dragStartX = e.clientX;
+    _dragStartY = e.clientY;
+    _startAX = parseInt(document.getElementById('welAvatarX').value) || 80;
+    _startAY = parseInt(document.getElementById('welAvatarY').value) || 86;
+    _startSize = parseInt(document.getElementById('welAvatarSize').value) || 128;
+    document.addEventListener('mousemove', onCanvasMouseMove);
+    document.addEventListener('mouseup', onCanvasMouseUp);
+    e.preventDefault();
+}
+
+function onCanvasMouseMove(e) {
+    const scale = getCanvasScale();
+    const dx = (e.clientX - _dragStartX) / scale;
+    const dy = (e.clientY - _dragStartY) / scale;
+    if (_dragType === 'drag') {
+        const nx = clamp(_startAX + dx, 0, 1296);
+        const ny = clamp(_startAY + dy, 0, 864);
+        document.getElementById('welAvatarX').value = Math.round(nx);
+        document.getElementById('welAvatarY').value = Math.round(ny);
+    } else if (_dragType === 'resize') {
+        const newSize = clamp(_startSize + dx, 32, 256);
+        document.getElementById('welAvatarSize').value = Math.round(newSize);
+    }
+    syncCanvas();
+}
+
+function onCanvasMouseUp() {
+    _dragType = null;
+    document.removeEventListener('mousemove', onCanvasMouseMove);
+    document.removeEventListener('mouseup', onCanvasMouseUp);
+}
+
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('canvasAvatar').addEventListener('mousedown', onCanvasMouseDown);
+});
+
+// ---- Embed Sender ----
+function updatePreview() {
+    const title = document.getElementById('embedTitle').value || 'Title';
+    const desc = document.getElementById('embedDesc').value || 'Description';
+    const color = document.getElementById('embedColor').value || '#5865F2';
+    const thumb = document.getElementById('embedThumb').value;
+    const footer = document.getElementById('embedFooter').value || '';
+
+    document.getElementById('previewTitle').textContent = title;
+    document.getElementById('previewDesc').textContent = desc;
+    document.getElementById('previewBar').style.background = color;
+    document.getElementById('previewFooter').textContent = footer;
+    document.getElementById('previewFooter').style.display = footer ? '' : 'none';
+
+    const thumbImg = document.getElementById('previewThumb');
+    if (thumb) {
+        thumbImg.src = thumb;
+        thumbImg.style.display = '';
+    } else {
+        thumbImg.style.display = 'none';
+    }
+}
+
+document.getElementById('embedTitle').addEventListener('input', updatePreview);
+document.getElementById('embedDesc').addEventListener('input', updatePreview);
+document.getElementById('embedColor').addEventListener('input', updatePreview);
+document.getElementById('embedThumb').addEventListener('input', updatePreview);
+document.getElementById('embedFooter').addEventListener('input', updatePreview);
+
+async function sendEmbed() {
+    const form = new FormData();
+    const channelSelect = document.getElementById('embedChannel');
+    form.append('channel_id', channelSelect.value);
+    form.append('title', document.getElementById('embedTitle').value);
+    form.append('description', document.getElementById('embedDesc').value);
+    form.append('color', document.getElementById('embedColor').value);
+    form.append('thumbnail', document.getElementById('embedThumb').value);
+    form.append('footer', document.getElementById('embedFooter').value);
+
+    if (!channelSelect.value) {
+        showToast('Please select a channel', 'error');
+        return;
+    }
+
+    const r = await fetch('/api/embed/send', { method: 'POST', body: form });
+    if (r.ok) showToast('Embed sent!', 'success');
+    else showToast('Failed to send embed', 'error');
+}
+
+async function sendMessage() {
+    const sel = document.getElementById('msgChannel');
+    const content = document.getElementById('msgContent').value.trim();
+    if (!sel.value) { showToast('Please select a channel', 'error'); return; }
+    if (!content) { showToast('Please enter a message', 'error'); return; }
+    const form = new FormData();
+    form.append('channel_id', sel.value);
+    form.append('content', content);
+    const r = await fetch('/api/message/send', { method: 'POST', body: form });
+    if (r.ok) { showToast('Message sent!', 'success'); document.getElementById('msgContent').value = ''; }
+    else showToast('Failed to send message', 'error');
+}
+
+// ---- Diagnostics ----
+async function runDiagnostics() {
+    const out = document.getElementById('diagOutput');
+    out.style.display = 'block';
+    out.textContent = 'Running diagnostics...\n';
+    try {
+        const debugR = await fetch('/api/debug');
+        const debug = await debugR.json();
+        out.textContent += '\n=== /api/debug ===\n' + JSON.stringify(debug, null, 2) + '\n\n';
+
+        const channelsR = await fetch('/api/guild/channels');
+        const channels = await channelsR.json();
+        out.textContent += '=== /api/guild/channels ===\n' + JSON.stringify(channels, null, 2) + '\n';
+
+        const rolesR = await fetch('/api/guild/roles');
+        const roles = await rolesR.json();
+        out.textContent += '\n=== /api/guild/roles ===\n' + JSON.stringify(roles, null, 2) + '\n';
+
+        const statsR = await fetch('/api/stats');
+        const stats = await statsR.json();
+        out.textContent += '\n=== /api/stats ===\n' + JSON.stringify(stats, null, 2) + '\n';
+
+        out.textContent += '\n--- Checking DOM elements ---\n';
+        ['ovWelcomeChannel','welChannel','leaveChannel','embedChannel','msgChannel','panelChannel','ovLogChannel','ovAutoRole','tktCat','tktRole'].forEach(id => {
+            const el = document.getElementById(id);
+            out.textContent += id + ': ' + (el ? 'FOUND (' + el.options.length + ' options)' : 'MISSING') + '\n';
+        });
+    } catch(e) {
+        out.textContent += '\nERROR: ' + e.message + '\n' + e.stack;
+    }
+}
+
+// ---- Utils ----
+function escHtml(s) {
+    if (typeof s !== 'string') return String(s || '');
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+}
+
+// ---- Init ----
+loadSettings();
+loadAutoResponder();
+loadTickets();
+loadLogs();
+setInterval(loadAutoResponder, 15000);
+setInterval(loadTickets, 15000);
+updatePreview();
+
+// Retry dropdowns if bot wasn't ready yet (retry every 5s, up to 6 times)
+let retryCount = 0;
+const retryInterval = setInterval(async () => {
+    retryCount++;
+    const panelSel = document.getElementById('panelChannel');
+    // If panelChannel has more than 1 option (the default), it means data loaded
+    if (panelSel && panelSel.options.length > 1) {
+        clearInterval(retryInterval);
+        console.log('Dropdowns populated after retry', retryCount);
+        return;
+    }
+    if (retryCount >= 6) {
+        clearInterval(retryInterval);
+        console.warn('Gave up retrying dropdowns after 30s');
+        return;
+    }
+    console.log('Retrying dropdowns (attempt', retryCount, ')...');
+    const r = await fetch('/api/stats').catch(() => null);
+    if (r && r.ok) {
+        const d = await r.json().catch(() => null);
+        if (d) await populateAllDropdowns(d);
+    }
+}, 5000);
+</script>
+{% endblock %}

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D&T Bot Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">D&T</div>
+                <span class="sidebar-brand">Bot Dashboard</span>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-tab="overview">
+                    <span class="nav-icon">&#9679;</span>
+                    <span>Overview</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="welcomer">
+                    <span class="nav-icon">&#128075;</span>
+                    <span>Welcomer</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="autoresponder">
+                    <span class="nav-icon">&#128264;</span>
+                    <span>Auto-Responder</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="automod">
+                    <span class="nav-icon">&#128737;</span>
+                    <span>AutoMod</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="embed">
+                    <span class="nav-icon">&#128172;</span>
+                    <span>Sender</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="tickets">
+                    <span class="nav-icon">&#127915;</span>
+                    <span>Tickets</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="logs">
+                    <span class="nav-icon">&#128214;</span>
+                    <span>Logs</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <span class="bot-status {{ 'status-online' if session.get('bot_status') == 'Online' else 'status-offline' }}"></span>
+                <span id="sidebarStatus">Offline</span>
+                <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script>
+    async function fetchStats() {
+        try {
+            const r = await fetch('/api/stats');
+            const data = await r.json();
+            document.getElementById('sidebarStatus').textContent = data.status;
+            document.querySelector('.bot-status').className = 'bot-status ' + (data.status === 'Online' ? 'status-online' : 'status-offline');
+            const st = document.getElementById('statStatus');
+            if (st) st.textContent = data.status;
+            const mc = document.getElementById('statMembers');
+            if (mc) mc.textContent = data.member_count;
+            const gn = document.getElementById('statGuild');
+            if (gn) gn.textContent = data.guild_name;
+        } catch(e) {}
+    }
+
+    // Tab switching
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            this.classList.add('active');
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            const tab = this.dataset.tab;
+            const panel = document.getElementById('tab-' + tab);
+            if (panel) panel.classList.add('active');
+        });
+    });
+
+    // Initial stats load
+    fetchStats();
+    setInterval(fetchStats, 10000);
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
