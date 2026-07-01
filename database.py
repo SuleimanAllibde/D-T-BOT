@@ -1,15 +1,20 @@
 import os
 from datetime import datetime
 
-from sqlalchemy import create_engine, Column, Integer, BigInteger, String, Text, Boolean, DateTime, JSON, Float
+from sqlalchemy import create_engine, Column, Integer, BigInteger, String, Text, Boolean, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+DATABASE_URL = os.getenv("DATABASE_URL")
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "dt_bot.db")
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "data", "uploads")
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-engine = create_engine(f"sqlite:///{DB_PATH}", echo=False)
+if DATABASE_URL:
+    engine = create_engine(DATABASE_URL, echo=False)
+else:
+    engine = create_engine(f"sqlite:///{DB_PATH}", echo=False)
+
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
@@ -45,10 +50,10 @@ class GuildSettings(Base):
     anti_bad_words = Column(Boolean, default=False)
     anti_links = Column(Boolean, default=False)
     anti_spam = Column(Boolean, default=False)
-    automod_penalty = Column(String(20), default="mute")  # mute, kick, ban
-    automod_bypass_roles = Column(Text, default="")  # comma-separated role IDs
+    automod_penalty = Column(String(20), default="mute")
+    automod_bypass_roles = Column(Text, default="")
 
-    # Ticket panel customization
+    # Ticket panel
     ticket_enabled = Column(Boolean, default=True)
     ticket_panel_title = Column(String(200), default="🎫 Support Tickets")
     ticket_panel_desc = Column(Text, default="Click the button below to open a ticket.")
@@ -96,26 +101,31 @@ class LogEntry(Base):
 
 def init_db():
     Base.metadata.create_all(engine)
-    # Add missing columns for existing databases (schema migration)
-    _migrate_add_column("guild_settings", "ticket_panel_channel_id", "BIGINT")
-    _migrate_add_column("guild_settings", "ticket_panel_message_id", "BIGINT")
-    _migrate_add_column("guild_settings", "avatar_x", "INTEGER DEFAULT 80")
-    _migrate_add_column("guild_settings", "avatar_y", "INTEGER DEFAULT 86")
-    _migrate_add_column("guild_settings", "avatar_size", "INTEGER DEFAULT 128")
-    _migrate_add_column("guild_settings", "name_x", "INTEGER DEFAULT 248")
-    _migrate_add_column("guild_settings", "name_y", "INTEGER DEFAULT 140")
+    _migrate_legacy()
 
 
-def _migrate_add_column(table: str, column: str, col_type: str):
+def _migrate_legacy():
+    if DATABASE_URL:
+        return
     import sqlite3
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute(f"PRAGMA table_info({table})")
-        existing = [row[1] for row in cursor.fetchall()]
-        if column not in existing:
-            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
-            conn.commit()
+        cursor.execute("PRAGMA table_info(guild_settings)")
+        existing = {row[1] for row in cursor.fetchall()}
+        legacy = [
+            ("ticket_panel_channel_id", "BIGINT"),
+            ("ticket_panel_message_id", "BIGINT"),
+            ("avatar_x", "INTEGER DEFAULT 80"),
+            ("avatar_y", "INTEGER DEFAULT 86"),
+            ("avatar_size", "INTEGER DEFAULT 128"),
+            ("name_x", "INTEGER DEFAULT 248"),
+            ("name_y", "INTEGER DEFAULT 140"),
+        ]
+        for col, typ in legacy:
+            if col not in existing:
+                cursor.execute(f"ALTER TABLE guild_settings ADD COLUMN {col} {typ}")
+        conn.commit()
         conn.close()
     except Exception:
         pass
