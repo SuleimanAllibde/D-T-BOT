@@ -186,6 +186,27 @@ def api_debug():
     return jsonify(info)
 
 
+@app.route("/api/debug/db")
+@login_required
+def api_debug_db():
+    try:
+        from database import get_session, GuildSettings, DB_PATH, DATABASE_URL
+        info = {"db_path": DB_PATH, "db_exists": os.path.exists(DB_PATH), "DATABASE_URL": DATABASE_URL}
+        sess = get_session()
+        try:
+            s = sess.get(GuildSettings, GUILD_ID)
+            if s:
+                info["settings_found"] = True
+                info["settings"] = {c.name: getattr(s, c.name) for c in GuildSettings.__table__.columns}
+            else:
+                info["settings_found"] = False
+        finally:
+            sess.close()
+        return jsonify(info)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ---- API: Stats ----
 
 @app.route("/api/stats")

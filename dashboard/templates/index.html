@@ -43,6 +43,10 @@ select.form-input option {
     flex-wrap:wrap;
 }
 .save-bar-inner span { color:var(--text-primary);font-size:14px; }
+.save-bar-inner .btn-primary {
+    background:#5865F2;color:#fff;border:none;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;
+}
+.save-bar-inner .btn-primary:hover { background:#4752c4; }
 </style>
 <script>
 function showToast(msg, type) {
@@ -58,7 +62,8 @@ function showToast(msg, type) {
 <!-- ===== SAVE BAR ===== -->
 <div id="saveBar" class="save-bar">
     <div class="save-bar-inner">
-        <span id="saveStatus">💾 All changes saved</span>
+        <span id="saveStatus">✅ All changes saved</span>
+        <button class="btn btn-primary" onclick="saveAll()">💾 Save Now</button>
     </div>
 </div>
 
@@ -707,13 +712,17 @@ function onCanvasMouseMove(e) {
         document.getElementById('welAvatarSize').value = Math.round(clamp(_startSize + dx, 32, 256));
     }
     syncCanvas();
-    markChange(document.getElementById('welAvatarX'));
+    // Trigger auto-save debounce on mouse up (so we don't spam saves during drag)
 }
 
 function onCanvasMouseUp() {
     _dragType = null;
     document.removeEventListener('mousemove', onCanvasMouseMove);
     document.removeEventListener('mouseup', onCanvasMouseUp);
+    // Fire change on hidden inputs to trigger auto-save
+    ['welAvatarX', 'welAvatarY', 'welAvatarSize'].forEach(id => {
+        document.getElementById(id).dispatchEvent(new Event('change'));
+    });
 }
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
