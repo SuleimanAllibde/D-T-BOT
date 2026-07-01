@@ -222,19 +222,19 @@ def api_stats():
         "member_count": bot_state["member_count"],
         "guild_name": bot_state["guild_name"],
         "welcome_enabled": s.welcome_enabled,
-        "welcome_channel_id": s.welcome_channel_id,
+        "welcome_channel_id": str(s.welcome_channel_id) if s.welcome_channel_id else None,
         "leave_enabled": s.leave_enabled,
-        "leave_channel_id": s.leave_channel_id,
+        "leave_channel_id": str(s.leave_channel_id) if s.leave_channel_id else None,
         "anti_bad_words": s.anti_bad_words,
         "anti_links": s.anti_links,
         "anti_spam": s.anti_spam,
         "automod_penalty": s.automod_penalty,
         "automod_bypass_roles": s.automod_bypass_roles,
         "ticket_enabled": s.ticket_enabled,
-        "ticket_panel_channel_id": s.ticket_panel_channel_id,
-        "ticket_panel_message_id": s.ticket_panel_message_id,
-        "log_channel_id": s.log_channel_id,
-        "auto_role_id": s.auto_role_id,
+        "ticket_panel_channel_id": str(s.ticket_panel_channel_id) if s.ticket_panel_channel_id else None,
+        "ticket_panel_message_id": str(s.ticket_panel_message_id) if s.ticket_panel_message_id else None,
+        "log_channel_id": str(s.log_channel_id) if s.log_channel_id else None,
+        "auto_role_id": str(s.auto_role_id) if s.auto_role_id else None,
     })
 
 
@@ -259,10 +259,10 @@ def api_welcomer():
     s = _settings()
     return jsonify({
         "welcome_enabled": s.welcome_enabled,
-        "welcome_channel_id": s.welcome_channel_id,
+        "welcome_channel_id": str(s.welcome_channel_id) if s.welcome_channel_id else None,
         "welcome_message": s.welcome_message,
         "leave_enabled": s.leave_enabled,
-        "leave_channel_id": s.leave_channel_id,
+        "leave_channel_id": str(s.leave_channel_id) if s.leave_channel_id else None,
         "leave_message": s.leave_message,
         "avatar_x": s.avatar_x or 80,
         "avatar_y": s.avatar_y or 86,
@@ -429,10 +429,10 @@ def api_tickets_settings():
         "ticket_panel_desc": s.ticket_panel_desc,
         "ticket_button_text": s.ticket_button_text,
         "ticket_embed_color": s.ticket_embed_color,
-        "ticket_category_id": s.ticket_category_id,
-        "ticket_support_role_id": s.ticket_support_role_id,
-        "ticket_panel_channel_id": s.ticket_panel_channel_id,
-        "ticket_panel_message_id": s.ticket_panel_message_id,
+        "ticket_category_id": str(s.ticket_category_id) if s.ticket_category_id else None,
+        "ticket_support_role_id": str(s.ticket_support_role_id) if s.ticket_support_role_id else None,
+        "ticket_panel_channel_id": str(s.ticket_panel_channel_id) if s.ticket_panel_channel_id else None,
+        "ticket_panel_message_id": str(s.ticket_panel_message_id) if s.ticket_panel_message_id else None,
     })
 
 
