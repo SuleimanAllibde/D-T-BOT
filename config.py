@@ -10,3 +10,6 @@ ADMIN_IDS = [
     for uid in os.getenv("ADMIN_IDS", "").split(",")
     if uid.strip().isdigit()
 ]
+DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
+DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
+DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", "http://localhost:5000/callback")

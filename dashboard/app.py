@@ -2,8 +2,9 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 import os
 from functools import wraps
 from dotenv import load_dotenv
+import requests
 
-from config import GUILD_ID, ADMIN_IDS
+from config import GUILD_ID, ADMIN_IDS, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI
 from database import (
     get_session, get_settings, GuildSettings,
     AutoResponder, ActiveTicket, LogEntry,
@@ -40,6 +41,8 @@ def login_required(f):
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    if session.get("logged_in"):
+        return redirect(url_for("index"))
     if request.method == "POST":
         uid = request.form.get("user_id", "")
         if uid.isdigit() and int(uid) in ADMIN_IDS:
@@ -47,7 +50,41 @@ def login():
             session["user_id"] = int(uid)
             return redirect(url_for("index"))
         return render_template("login.html", error="Invalid admin ID")
-    return render_template("login.html")
+    discord_auth_url = f"https://discord.com/api/oauth2/authorize?client_id={DISCORD_CLIENT_ID}&redirect_uri={DISCORD_REDIRECT_URI}&response_type=code&scope=identify"
+    return render_template("login.html", discord_auth_url=discord_auth_url)
+
+
+@app.route("/callback")
+def oauth2_callback():
+    code = request.args.get("code")
+    if not code:
+        return redirect(url_for("login"))
+    data = {
+        "client_id": DISCORD_CLIENT_ID,
+        "client_secret": DISCORD_CLIENT_SECRET,
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": DISCORD_REDIRECT_URI,
+    }
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    r = requests.post("https://discord.com/api/oauth2/token", data=data, headers=headers)
+    if not r.ok:
+        return render_template("login.html", error="Failed to authenticate with Discord")
+    token_data = r.json()
+    access_token = token_data.get("access_token")
+    if not access_token:
+        return render_template("login.html", error="No access token received")
+    user_r = requests.get("https://discord.com/api/users/@me", headers={"Authorization": f"Bearer {access_token}"})
+    if not user_r.ok:
+        return render_template("login.html", error="Failed to fetch user info")
+    user_data = user_r.json()
+    user_id = int(user_data["id"])
+    if user_id not in ADMIN_IDS:
+        return render_template("login.html", error="You are not authorized to access this dashboard")
+    session["logged_in"] = True
+    session["user_id"] = user_id
+    session["username"] = user_data.get("username", "Unknown")
+    return redirect(url_for("index"))
 
 
 @app.route("/logout")
