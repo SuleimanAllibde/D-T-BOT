@@ -42,12 +42,7 @@ select.form-input option {
     display:flex;align-items:center;justify-content:center;gap:16px;
     flex-wrap:wrap;
 }
-.save-bar-inner span { color:var(--text-primary);font-size:15px;font-weight:600; }
-.save-bar-inner .btn-secondary {
-    background:var(--bg-tertiary);color:var(--text-primary);
-    border:1px solid var(--border);padding:8px 20px;border-radius:8px;cursor:pointer;font-size:14px;
-}
-.save-bar-inner .btn-secondary:hover { background:var(--border); }
+.save-bar-inner span { color:var(--text-primary);font-size:14px; }
 </style>
 <script>
 function showToast(msg, type) {
@@ -63,9 +58,7 @@ function showToast(msg, type) {
 <!-- ===== SAVE BAR ===== -->
 <div id="saveBar" class="save-bar">
     <div class="save-bar-inner">
-        <span>⚠️ You have unsaved changes</span>
-        <button class="btn btn-primary" onclick="saveAll()">💾 Save Changes</button>
-        <button class="btn-secondary" onclick="discardChanges()">Discard</button>
+        <span id="saveStatus">💾 All changes saved</span>
     </div>
 </div>
 
@@ -371,7 +364,6 @@ function showToast(msg, type) {
 {% block scripts %}
 <script>
 // ---- Save bar ----
-let _origSettings = {};
 
 function getSettingVal(id) {
     const el = document.getElementById(id);
@@ -380,46 +372,20 @@ function getSettingVal(id) {
     return el.value;
 }
 
-function snapshotSettings() {
-    document.querySelectorAll('[data-setting]').forEach(el => {
-        _origSettings[el.id] = getSettingVal(el.id);
-    });
-}
+let _saveTimer = null;
+const _saveStatus = document.getElementById('saveStatus');
 
-function checkChanges() {
-    let changed = false;
-    document.querySelectorAll('[data-setting]').forEach(el => {
-        if (getSettingVal(el.id) != _origSettings[el.id]) changed = true;
-    });
-    document.getElementById('saveBar').classList.toggle('visible', changed);
+function showSaving() {
+    document.getElementById('saveBar').classList.add('visible');
+    _saveStatus.textContent = '⏳ Saving...';
 }
-
-function markChange(el) {
-    checkChanges();
+function showSaved() {
+    _saveStatus.textContent = '✅ All changes saved';
+    setTimeout(() => document.getElementById('saveBar').classList.remove('visible'), 2000);
 }
-
-function discardChanges() {
-    document.querySelectorAll('[data-setting]').forEach(el => {
-        const orig = _origSettings[el.id];
-        if (orig !== undefined) {
-            if (el.type === 'checkbox') el.checked = orig;
-            else el.value = orig;
-        }
-    });
-    checkChanges();
-}
-
-// Attach change listeners
-document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('[data-setting]').forEach(el => {
-        el.addEventListener('change', () => markChange(el));
-        el.addEventListener('input', () => markChange(el));
-    });
-});
 
 async function saveAll() {
-    const bar = document.getElementById('saveBar');
-    bar.classList.remove('visible');
+    showSaving();
 
     // Welcomer block
     const welForm = new FormData();
@@ -463,16 +429,28 @@ async function saveAll() {
         const r3 = await fetch('/api/tickets/settings', { method: 'POST', body: tktForm });
         const r4 = await fetch('/update', { method: 'POST', body: ovForm });
         if (r1.ok && r2.ok && r3.ok && r4.ok) {
-            showToast('✅ All settings saved!', 'success');
+            showSaved();
         } else {
             showToast('❌ Some settings failed to save', 'error');
+            showSaved();
         }
     } catch(e) {
         showToast('❌ Save failed: ' + e.message, 'error');
+        showSaved();
     }
-    snapshotSettings();
-    checkChanges();
 }
+
+// Auto-save with debounce
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-setting]').forEach(el => {
+        const triggerSave = () => {
+            clearTimeout(_saveTimer);
+            _saveTimer = setTimeout(saveAll, 1500);
+        };
+        el.addEventListener('change', triggerSave);
+        el.addEventListener('input', triggerSave);
+    });
+});
 
 // ---- Populate dropdowns ----
 async function populateSelect(url, selectId, selectedId, noneLabel) {
@@ -587,9 +565,6 @@ async function loadSettings() {
     document.getElementById('ovWelcomeChannel').value = d.welcome_channel_id || '';
     document.getElementById('ovLogChannel').value = d.log_channel_id || '';
     document.getElementById('ovAutoRole').value = d.auto_role_id || '';
-
-    // Snapshot after loading
-    setTimeout(snapshotSettings, 1500);
 }
 
 // ---- Load Auto-Responder list ----
