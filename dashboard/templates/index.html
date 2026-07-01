@@ -29,6 +29,25 @@ select.form-input option {
 }
 .channel-option { display: flex; align-items: center; gap: 8px; }
 .channel-hash { color: var(--text-muted); }
+.save-bar {
+    position:fixed;bottom:0;left:0;right:0;z-index:999;
+    background:var(--bg-secondary);border-top:2px solid var(--accent);
+    padding:12px 24px;box-shadow:0 -4px 20px rgba(0,0,0,0.5);
+    transition:transform 0.3s ease, opacity 0.3s ease;
+    transform:translateY(100%);opacity:0;
+}
+.save-bar.visible { transform:translateY(0);opacity:1; }
+.save-bar-inner {
+    max-width:900px;margin:0 auto;
+    display:flex;align-items:center;justify-content:center;gap:16px;
+    flex-wrap:wrap;
+}
+.save-bar-inner span { color:var(--text-primary);font-size:15px;font-weight:600; }
+.save-bar-inner .btn-secondary {
+    background:var(--bg-tertiary);color:var(--text-primary);
+    border:1px solid var(--border);padding:8px 20px;border-radius:8px;cursor:pointer;font-size:14px;
+}
+.save-bar-inner .btn-secondary:hover { background:var(--border); }
 </style>
 <script>
 function showToast(msg, type) {
@@ -41,6 +60,15 @@ function showToast(msg, type) {
 </script>
 {% endblock %}
 {% block content %}
+<!-- ===== SAVE BAR ===== -->
+<div id="saveBar" class="save-bar">
+    <div class="save-bar-inner">
+        <span>⚠️ You have unsaved changes</span>
+        <button class="btn btn-primary" onclick="saveAll()">💾 Save Changes</button>
+        <button class="btn-secondary" onclick="discardChanges()">Discard</button>
+    </div>
+</div>
+
 <!-- ===== OVERVIEW ===== -->
 <div id="tab-overview" class="tab-panel active">
     <h1>Overview</h1>
@@ -61,23 +89,20 @@ function showToast(msg, type) {
 
     <div class="card">
         <h2>Quick Settings</h2>
-        <form method="POST" action="{{ url_for('update') }}">
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Welcome Channel</label>
-                    <select name="welcome_channel" id="ovWelcomeChannel" class="form-input"></select>
-                </div>
-                <div class="form-group">
-                    <label>Log Channel</label>
-                    <select name="log_channel" id="ovLogChannel" class="form-input"></select>
-                </div>
-                <div class="form-group">
-                    <label>Auto-Role</label>
-                    <select name="auto_role" id="ovAutoRole" class="form-input"></select>
-                </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Welcome Channel</label>
+                <select id="ovWelcomeChannel" class="form-input" data-setting="welcome_channel_id"></select>
             </div>
-            <button type="submit" class="btn btn-primary">Save Quick Settings</button>
-        </form>
+            <div class="form-group">
+                <label>Log Channel</label>
+                <select id="ovLogChannel" class="form-input" data-setting="log_channel_id"></select>
+            </div>
+            <div class="form-group">
+                <label>Auto-Role</label>
+                <select id="ovAutoRole" class="form-input" data-setting="auto_role_id"></select>
+            </div>
+        </div>
     </div>
 
     <div class="card">
@@ -101,58 +126,55 @@ function showToast(msg, type) {
 <!-- ===== WELCOMER ===== -->
 <div id="tab-welcomer" class="tab-panel">
     <h1>Welcomer &amp; Leaver</h1>
-    <form method="POST" action="{{ url_for('api_welcomer') }}" enctype="multipart/form-data">
-        <div class="card">
-            <div class="toggle-row">
-                <span>Enable Welcome System</span>
-                <label class="switch"><input type="checkbox" name="welcome_enabled" id="welEnabled"><span class="slider"></span></label>
-            </div>
-            <div class="form-group">
-                <label>Welcome Channel</label>
-                <select name="welcome_channel_id" id="welChannel" class="form-input"></select>
-            </div>
-            <div class="form-group">
-                <label>Welcome Message <small>Use {user}, {server}, {member_count}, {username}, {display_name}</small></label>
-                <textarea name="welcome_message" id="welMessage" rows="3" placeholder="Welcome {user} to **{server}**!"></textarea>
-            </div>
+    <div class="card">
+        <div class="toggle-row">
+            <span>Enable Welcome System</span>
+            <label class="switch"><input type="checkbox" id="welEnabled" data-setting="welcome_enabled"><span class="slider"></span></label>
         </div>
-        <div class="card" style="border:1px solid var(--border);">
-                <h2>🎨 Avatar Position</h2>
-                <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px;">
-                    Drag the avatar to position it. Drag the <strong>↘</strong> handle to resize.
-                </p>
-                <div id="canvasWrapper" style="position:relative;width:100%;max-width:800px;border-radius:8px;overflow:hidden;border:2px solid var(--border);background:#202225;user-select:none;aspect-ratio:1296/864;">
-                    <img id="canvasBg" src="/api/bg" alt="Background" style="display:block;width:100%;height:100%;pointer-events:none;object-fit:fill;">
-                    <div id="canvasAvatar" style="position:absolute;cursor:move;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,0.5),0 0 12px rgba(0,0,0,0.4);pointer-events:auto;z-index:5;">
-                        <div id="canvasAvatarInner" style="width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,#5865F2,#4752C4);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;font-family:sans-serif;">A</div>
-                        <div id="resizeHandle" style="position:absolute;bottom:-8px;right:-8px;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid #5865F2;cursor:nwse-resize;box-shadow:0 0 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;color:#5865F2;z-index:6;">↘</div>
-                    </div>
-                </div>
-                <div style="margin-top:10px;font-size:13px;color:var(--text-muted);">
-                    X: <strong id="dispX">80</strong> &nbsp;|&nbsp;
-                    Y: <strong id="dispY">86</strong> &nbsp;|&nbsp;
-                    Size: <strong id="dispSize">128</strong>
-                </div>
-                <input type="hidden" name="avatar_x" id="welAvatarX" value="80">
-                <input type="hidden" name="avatar_y" id="welAvatarY" value="86">
-                <input type="hidden" name="avatar_size" id="welAvatarSize" value="128">
-            </div>
-        <div class="card">
-            <div class="toggle-row">
-                <span>Enable Leave System</span>
-                <label class="switch"><input type="checkbox" name="leave_enabled" id="leaveEnabled"><span class="slider"></span></label>
-            </div>
-            <div class="form-group">
-                <label>Leave Channel</label>
-                <select name="leave_channel_id" id="leaveChannel" class="form-input"></select>
-            </div>
-            <div class="form-group">
-                <label>Leave Message <small>Use {user}, {server}, {member_count}</small></label>
-                <textarea name="leave_message" id="leaveMessage" rows="3" placeholder="{user} has left {server}."></textarea>
-            </div>
+        <div class="form-group">
+            <label>Welcome Channel</label>
+            <select id="welChannel" class="form-input" data-setting="welcome_channel_id"></select>
         </div>
-        <button type="submit" class="btn btn-primary">Save Welcomer Settings</button>
-    </form>
+        <div class="form-group">
+            <label>Welcome Message <small>Use {user}, {server}, {member_count}, {username}, {display_name}</small></label>
+            <textarea id="welMessage" rows="3" data-setting="welcome_message" placeholder="Welcome {user} to **{server}**!"></textarea>
+        </div>
+    </div>
+    <div class="card" style="border:1px solid var(--border);">
+            <h2>🎨 Avatar Position</h2>
+            <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px;">
+                Drag the avatar to position it. Drag the <strong>↘</strong> handle to resize.
+            </p>
+            <div id="canvasWrapper" style="position:relative;width:100%;max-width:800px;border-radius:8px;overflow:hidden;border:2px solid var(--border);background:#202225;user-select:none;aspect-ratio:1296/864;">
+                <img id="canvasBg" src="/api/bg" alt="Background" style="display:block;width:100%;height:100%;pointer-events:none;object-fit:fill;">
+                <div id="canvasAvatar" style="position:absolute;cursor:move;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,0.5),0 0 12px rgba(0,0,0,0.4);pointer-events:auto;z-index:5;">
+                    <div id="canvasAvatarInner" style="width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,#5865F2,#4752C4);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;font-family:sans-serif;">A</div>
+                    <div id="resizeHandle" style="position:absolute;bottom:-8px;right:-8px;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid #5865F2;cursor:nwse-resize;box-shadow:0 0 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;color:#5865F2;z-index:6;">↘</div>
+                </div>
+            </div>
+            <div style="margin-top:10px;font-size:13px;color:var(--text-muted);">
+                X: <strong id="dispX">80</strong> &nbsp;|&nbsp;
+                Y: <strong id="dispY">86</strong> &nbsp;|&nbsp;
+                Size: <strong id="dispSize">128</strong>
+            </div>
+            <input type="hidden" id="welAvatarX" data-setting="avatar_x" value="80">
+            <input type="hidden" id="welAvatarY" data-setting="avatar_y" value="86">
+            <input type="hidden" id="welAvatarSize" data-setting="avatar_size" value="128">
+        </div>
+    <div class="card">
+        <div class="toggle-row">
+            <span>Enable Leave System</span>
+            <label class="switch"><input type="checkbox" id="leaveEnabled" data-setting="leave_enabled"><span class="slider"></span></label>
+        </div>
+        <div class="form-group">
+            <label>Leave Channel</label>
+            <select id="leaveChannel" class="form-input" data-setting="leave_channel_id"></select>
+        </div>
+        <div class="form-group">
+            <label>Leave Message <small>Use {user}, {server}, {member_count}</small></label>
+            <textarea id="leaveMessage" rows="3" data-setting="leave_message" placeholder="{user} has left {server}."></textarea>
+        </div>
+    </div>
 </div>
 
 <!-- ===== AUTO-RESPONDER ===== -->
@@ -160,19 +182,17 @@ function showToast(msg, type) {
     <h1>Auto-Responder</h1>
     <div class="card">
         <h2>Add Trigger</h2>
-        <form method="POST" action="{{ url_for('api_autoresponder_add') }}">
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Trigger Word</label>
-                    <input type="text" name="trigger" placeholder="e.g. hi" required>
-                </div>
-                <div class="form-group">
-                    <label>Bot Response</label>
-                    <input type="text" name="response" placeholder="e.g. Hello there!" required>
-                </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Trigger Word</label>
+                <input type="text" id="arTrigger" placeholder="e.g. hi">
             </div>
-            <button type="submit" class="btn btn-primary">Add Trigger</button>
-        </form>
+            <div class="form-group">
+                <label>Bot Response</label>
+                <input type="text" id="arResponse" placeholder="e.g. Hello there!">
+            </div>
+        </div>
+        <button onclick="addAutoResponder()" class="btn btn-primary">Add Trigger</button>
     </div>
     <div class="card">
         <h2>Existing Triggers</h2>
@@ -186,44 +206,40 @@ function showToast(msg, type) {
 <!-- ===== AUTOMOD ===== -->
 <div id="tab-automod" class="tab-panel">
     <h1>AutoMod Settings</h1>
-    <form method="POST" action="{{ url_for('api_automod') }}">
-        <div class="card">
-            <div class="toggle-row">
-                <span>Anti Bad Words</span>
-                <label class="switch"><input type="checkbox" name="anti_bad_words" id="abw"><span class="slider"></span></label>
-            </div>
-            <div class="toggle-row">
-                <span>Anti Links</span>
-                <label class="switch"><input type="checkbox" name="anti_links" id="al"><span class="slider"></span></label>
-            </div>
-            <div class="toggle-row">
-                <span>Anti Spam</span>
-                <label class="switch"><input type="checkbox" name="anti_spam" id="as"><span class="slider"></span></label>
-            </div>
+    <div class="card">
+        <div class="toggle-row">
+            <span>Anti Bad Words</span>
+            <label class="switch"><input type="checkbox" id="abw" data-setting="anti_bad_words"><span class="slider"></span></label>
         </div>
-        <div class="card">
-            <h2>Penalty &amp; Bypass</h2>
-            <div class="form-group">
-                <label>Penalty Action</label>
-                <select name="automod_penalty" id="amPenalty" class="form-input">
-                    <option value="mute">Mute</option>
-                    <option value="kick">Kick</option>
-                    <option value="ban">Ban</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Bypass Roles <small>(comma-separated role IDs)</small></label>
-                <input type="text" name="automod_bypass_roles" id="amBypass" placeholder="Role IDs">
-            </div>
+        <div class="toggle-row">
+            <span>Anti Links</span>
+            <label class="switch"><input type="checkbox" id="al" data-setting="anti_links"><span class="slider"></span></label>
         </div>
-        <button type="submit" class="btn btn-primary">Save AutoMod Settings</button>
-    </form>
+        <div class="toggle-row">
+            <span>Anti Spam</span>
+            <label class="switch"><input type="checkbox" id="as" data-setting="anti_spam"><span class="slider"></span></label>
+        </div>
+    </div>
+    <div class="card">
+        <h2>Penalty &amp; Bypass</h2>
+        <div class="form-group">
+            <label>Penalty Action</label>
+            <select id="amPenalty" class="form-input" data-setting="automod_penalty">
+                <option value="mute">Mute</option>
+                <option value="kick">Kick</option>
+                <option value="ban">Ban</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Bypass Roles <small>(comma-separated role IDs)</small></label>
+            <input type="text" id="amBypass" data-setting="automod_bypass_roles" placeholder="Role IDs">
+        </div>
+    </div>
 </div>
 
 <!-- ===== SENDER ===== -->
 <div id="tab-embed" class="tab-panel">
     <h1>Message &amp; Embed Sender</h1>
-    <!-- Regular Message -->
     <div class="card">
         <h2>Send a Message</h2>
         <div class="form-group">
@@ -236,7 +252,6 @@ function showToast(msg, type) {
         </div>
         <button onclick="sendMessage()" class="btn btn-primary">Send Message</button>
     </div>
-    <!-- Embed -->
     <div class="card">
         <h2>Send an Embed</h2>
         <div class="form-row">
@@ -285,43 +300,40 @@ function showToast(msg, type) {
 <!-- ===== TICKETS ===== -->
 <div id="tab-tickets" class="tab-panel">
     <h1>Ticket System Manager</h1>
-    <form method="POST" action="{{ url_for('api_tickets_settings') }}">
-        <div class="card">
-            <div class="toggle-row">
-                <span>Enable Ticket System</span>
-                <label class="switch"><input type="checkbox" name="ticket_enabled" id="tktEnabled"><span class="slider"></span></label>
+    <div class="card">
+        <div class="toggle-row">
+            <span>Enable Ticket System</span>
+            <label class="switch"><input type="checkbox" id="tktEnabled" data-setting="ticket_enabled"><span class="slider"></span></label>
+        </div>
+        <div class="form-group">
+            <label>Panel Title</label>
+            <input type="text" id="tktTitle" data-setting="ticket_panel_title" placeholder="🎫 Support Tickets">
+        </div>
+        <div class="form-group">
+            <label>Panel Description</label>
+            <textarea id="tktDesc" rows="2" data-setting="ticket_panel_desc" placeholder="Click the button below to open a ticket."></textarea>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Button Text</label>
+                <input type="text" id="tktBtn" data-setting="ticket_button_text" placeholder="Open Ticket">
             </div>
             <div class="form-group">
-                <label>Panel Title</label>
-                <input type="text" name="ticket_panel_title" id="tktTitle" placeholder="🎫 Support Tickets">
-            </div>
-            <div class="form-group">
-                <label>Panel Description</label>
-                <textarea name="ticket_panel_desc" id="tktDesc" rows="2" placeholder="Click the button below to open a ticket."></textarea>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Button Text</label>
-                    <input type="text" name="ticket_button_text" id="tktBtn" placeholder="Open Ticket">
-                </div>
-                <div class="form-group">
-                    <label>Embed Color (Hex)</label>
-                    <input type="text" name="ticket_embed_color" id="tktColor" placeholder="#5865F2">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Ticket Category</label>
-                    <select name="ticket_category_id" id="tktCat" class="form-input"></select>
-                </div>
-                <div class="form-group">
-                    <label>Support Role</label>
-                    <select name="ticket_support_role_id" id="tktRole" class="form-input"></select>
-                </div>
+                <label>Embed Color (Hex)</label>
+                <input type="text" id="tktColor" data-setting="ticket_embed_color" placeholder="#5865F2">
             </div>
         </div>
-        <button type="submit" class="btn btn-primary">Save Ticket Settings</button>
-    </form>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Ticket Category</label>
+                <select id="tktCat" class="form-input" data-setting="ticket_category_id"></select>
+            </div>
+            <div class="form-group">
+                <label>Support Role</label>
+                <select id="tktRole" class="form-input" data-setting="ticket_support_role_id"></select>
+            </div>
+        </div>
+    </div>
 
     <div class="card">
         <h2>Panel Channel &amp; Deployment</h2>
@@ -358,6 +370,110 @@ function showToast(msg, type) {
 
 {% block scripts %}
 <script>
+// ---- Save bar ----
+let _origSettings = {};
+
+function getSettingVal(id) {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    if (el.type === 'checkbox') return el.checked;
+    return el.value;
+}
+
+function snapshotSettings() {
+    document.querySelectorAll('[data-setting]').forEach(el => {
+        _origSettings[el.id] = getSettingVal(el.id);
+    });
+}
+
+function checkChanges() {
+    let changed = false;
+    document.querySelectorAll('[data-setting]').forEach(el => {
+        if (getSettingVal(el.id) != _origSettings[el.id]) changed = true;
+    });
+    document.getElementById('saveBar').classList.toggle('visible', changed);
+}
+
+function markChange(el) {
+    checkChanges();
+}
+
+function discardChanges() {
+    document.querySelectorAll('[data-setting]').forEach(el => {
+        const orig = _origSettings[el.id];
+        if (orig !== undefined) {
+            if (el.type === 'checkbox') el.checked = orig;
+            else el.value = orig;
+        }
+    });
+    checkChanges();
+}
+
+// Attach change listeners
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-setting]').forEach(el => {
+        el.addEventListener('change', () => markChange(el));
+        el.addEventListener('input', () => markChange(el));
+    });
+});
+
+async function saveAll() {
+    const bar = document.getElementById('saveBar');
+    bar.classList.remove('visible');
+
+    // Welcomer block
+    const welForm = new FormData();
+    welForm.append('welcome_enabled', getSettingVal('welEnabled') ? 'on' : '');
+    welForm.append('welcome_channel_id', getSettingVal('welChannel') || '');
+    welForm.append('welcome_message', getSettingVal('welMessage') || '');
+    welForm.append('leave_enabled', getSettingVal('leaveEnabled') ? 'on' : '');
+    welForm.append('leave_channel_id', getSettingVal('leaveChannel') || '');
+    welForm.append('leave_message', getSettingVal('leaveMessage') || '');
+    welForm.append('avatar_x', getSettingVal('welAvatarX') || '');
+    welForm.append('avatar_y', getSettingVal('welAvatarY') || '');
+    welForm.append('avatar_size', getSettingVal('welAvatarSize') || '');
+
+    // AutoMod block
+    const amForm = new FormData();
+    amForm.append('anti_bad_words', getSettingVal('abw') ? 'on' : '');
+    amForm.append('anti_links', getSettingVal('al') ? 'on' : '');
+    amForm.append('anti_spam', getSettingVal('as') ? 'on' : '');
+    amForm.append('automod_penalty', getSettingVal('amPenalty') || 'mute');
+    amForm.append('automod_bypass_roles', getSettingVal('amBypass') || '');
+
+    // Tickets block
+    const tktForm = new FormData();
+    tktForm.append('ticket_enabled', getSettingVal('tktEnabled') ? 'on' : '');
+    tktForm.append('ticket_panel_title', getSettingVal('tktTitle') || '');
+    tktForm.append('ticket_panel_desc', getSettingVal('tktDesc') || '');
+    tktForm.append('ticket_button_text', getSettingVal('tktBtn') || '');
+    tktForm.append('ticket_embed_color', getSettingVal('tktColor') || '#5865F2');
+    tktForm.append('ticket_category_id', getSettingVal('tktCat') || '');
+    tktForm.append('ticket_support_role_id', getSettingVal('tktRole') || '');
+
+    // Overview block
+    const ovForm = new FormData();
+    ovForm.append('welcome_channel', getSettingVal('ovWelcomeChannel') || '');
+    ovForm.append('log_channel', getSettingVal('ovLogChannel') || '');
+    ovForm.append('auto_role', getSettingVal('ovAutoRole') || '');
+
+    try {
+        const r1 = await fetch('/api/welcomer', { method: 'POST', body: welForm });
+        const r2 = await fetch('/api/automod', { method: 'POST', body: amForm });
+        const r3 = await fetch('/api/tickets/settings', { method: 'POST', body: tktForm });
+        const r4 = await fetch('/update', { method: 'POST', body: ovForm });
+        if (r1.ok && r2.ok && r3.ok && r4.ok) {
+            showToast('✅ All settings saved!', 'success');
+        } else {
+            showToast('❌ Some settings failed to save', 'error');
+        }
+    } catch(e) {
+        showToast('❌ Save failed: ' + e.message, 'error');
+    }
+    snapshotSettings();
+    checkChanges();
+}
+
 // ---- Populate dropdowns ----
 async function populateSelect(url, selectId, selectedId, noneLabel) {
     try {
@@ -366,7 +482,6 @@ async function populateSelect(url, selectId, selectedId, noneLabel) {
         const data = await r.json();
         const sel = document.getElementById(selectId);
         if (!sel) return;
-        // data could be an array (channels) or an object with error key
         const items = Array.isArray(data) ? data : [];
         if (!Array.isArray(data)) console.warn('populateSelect', selectId, ':', data);
         let html = '<option value="">' + (noneLabel || '— None / Disabled —') + '</option>';
@@ -375,7 +490,6 @@ async function populateSelect(url, selectId, selectedId, noneLabel) {
             html += '<option value="' + item.id + '" ' + selected + '>#' + escHtml(item.name) + '</option>';
         });
         sel.innerHTML = html;
-        console.log('Populated', selectId, 'with', items.length, 'items');
     } catch(e) {
         console.error('populateSelect failed:', selectId, e);
     }
@@ -396,7 +510,6 @@ async function populateRoleSelect(url, selectId, selectedId, noneLabel) {
             html += '<option value="' + item.id + '" ' + selected + '>' + escHtml(item.name) + '</option>';
         });
         sel.innerHTML = html;
-        console.log('Populated', selectId, 'with', items.length, 'roles');
     } catch(e) {
         console.error('populateRoleSelect failed:', selectId, e);
     }
@@ -419,7 +532,6 @@ async function populateAllDropdowns(settings) {
     await populateRoleSelect(ro, 'tktRole', null);
     await populateSelect(ca, 'tktCat', null);
 
-    // Set ticket-specific dropdowns after population
     if (settings?.ticket_category_id) {
         const el = document.getElementById('tktCat');
         if (el) el.value = settings.ticket_category_id;
@@ -470,6 +582,14 @@ async function loadSettings() {
     document.getElementById('tktDesc').value = t.ticket_panel_desc || '';
     document.getElementById('tktBtn').value = t.ticket_button_text || 'Open Ticket';
     document.getElementById('tktColor').value = t.ticket_embed_color || '#5865F2';
+
+    // Overview selects
+    document.getElementById('ovWelcomeChannel').value = d.welcome_channel_id || '';
+    document.getElementById('ovLogChannel').value = d.log_channel_id || '';
+    document.getElementById('ovAutoRole').value = d.auto_role_id || '';
+
+    // Snapshot after loading
+    setTimeout(snapshotSettings, 1500);
 }
 
 // ---- Load Auto-Responder list ----
@@ -481,13 +601,31 @@ async function loadAutoResponder() {
         <tr>
             <td><code>${escHtml(i.trigger)}</code></td>
             <td>${escHtml(i.response)}</td>
-            <td>
-                <form method="POST" action="/api/autoresponder/delete/${i.id}" style="display:inline">
-                    <button class="btn btn-sm btn-danger">Delete</button>
-                </form>
-            </td>
+            <td><button class="btn btn-sm btn-danger" onclick="deleteAutoResponder(${i.id})">Delete</button></td>
         </tr>
     `).join('');
+}
+
+async function addAutoResponder() {
+    const trigger = document.getElementById('arTrigger').value.trim();
+    const response = document.getElementById('arResponse').value.trim();
+    if (!trigger || !response) { showToast('Please enter trigger and response', 'error'); return; }
+    const form = new FormData();
+    form.append('trigger', trigger);
+    form.append('response', response);
+    const r = await fetch('/api/autoresponder/add', { method: 'POST', body: form });
+    if (r.ok) {
+        showToast('✅ Trigger added!', 'success');
+        document.getElementById('arTrigger').value = '';
+        document.getElementById('arResponse').value = '';
+        loadAutoResponder();
+    } else showToast('❌ Failed to add trigger', 'error');
+}
+
+async function deleteAutoResponder(id) {
+    const r = await fetch('/api/autoresponder/delete/' + id, { method: 'POST' });
+    if (r.ok) { showToast('Deleted', 'success'); loadAutoResponder(); }
+    else showToast('Failed to delete', 'error');
 }
 
 // ---- Load active tickets ----
@@ -570,15 +708,9 @@ function syncCanvas() {
     document.getElementById('dispSize').textContent = sz;
 }
 
-
-
 function onCanvasMouseDown(e) {
-    const target = e.target;
-    if (target.id === 'resizeHandle') {
-        _dragType = 'resize';
-    } else {
-        _dragType = 'drag';
-    }
+    if (e.target.id === 'resizeHandle') _dragType = 'resize';
+    else _dragType = 'drag';
     _dragStartX = e.clientX;
     _dragStartY = e.clientY;
     _startAX = parseInt(document.getElementById('welAvatarX').value) || 80;
@@ -594,15 +726,13 @@ function onCanvasMouseMove(e) {
     const dx = (e.clientX - _dragStartX) / scale;
     const dy = (e.clientY - _dragStartY) / scale;
     if (_dragType === 'drag') {
-        const nx = clamp(_startAX + dx, 0, 1296);
-        const ny = clamp(_startAY + dy, 0, 864);
-        document.getElementById('welAvatarX').value = Math.round(nx);
-        document.getElementById('welAvatarY').value = Math.round(ny);
+        document.getElementById('welAvatarX').value = Math.round(clamp(_startAX + dx, 0, 1296));
+        document.getElementById('welAvatarY').value = Math.round(clamp(_startAY + dy, 0, 864));
     } else if (_dragType === 'resize') {
-        const newSize = clamp(_startSize + dx, 32, 256);
-        document.getElementById('welAvatarSize').value = Math.round(newSize);
+        document.getElementById('welAvatarSize').value = Math.round(clamp(_startSize + dx, 32, 256));
     }
     syncCanvas();
+    markChange(document.getElementById('welAvatarX'));
 }
 
 function onCanvasMouseUp() {
@@ -624,20 +754,14 @@ function updatePreview() {
     const color = document.getElementById('embedColor').value || '#5865F2';
     const thumb = document.getElementById('embedThumb').value;
     const footer = document.getElementById('embedFooter').value || '';
-
     document.getElementById('previewTitle').textContent = title;
     document.getElementById('previewDesc').textContent = desc;
     document.getElementById('previewBar').style.background = color;
     document.getElementById('previewFooter').textContent = footer;
     document.getElementById('previewFooter').style.display = footer ? '' : 'none';
-
     const thumbImg = document.getElementById('previewThumb');
-    if (thumb) {
-        thumbImg.src = thumb;
-        thumbImg.style.display = '';
-    } else {
-        thumbImg.style.display = 'none';
-    }
+    if (thumb) { thumbImg.src = thumb; thumbImg.style.display = ''; }
+    else { thumbImg.style.display = 'none'; }
 }
 
 document.getElementById('embedTitle').addEventListener('input', updatePreview);
@@ -648,19 +772,14 @@ document.getElementById('embedFooter').addEventListener('input', updatePreview);
 
 async function sendEmbed() {
     const form = new FormData();
-    const channelSelect = document.getElementById('embedChannel');
-    form.append('channel_id', channelSelect.value);
+    const sel = document.getElementById('embedChannel');
+    form.append('channel_id', sel.value);
     form.append('title', document.getElementById('embedTitle').value);
     form.append('description', document.getElementById('embedDesc').value);
     form.append('color', document.getElementById('embedColor').value);
     form.append('thumbnail', document.getElementById('embedThumb').value);
     form.append('footer', document.getElementById('embedFooter').value);
-
-    if (!channelSelect.value) {
-        showToast('Please select a channel', 'error');
-        return;
-    }
-
+    if (!sel.value) { showToast('Please select a channel', 'error'); return; }
     const r = await fetch('/api/embed/send', { method: 'POST', body: form });
     if (r.ok) showToast('Embed sent!', 'success');
     else showToast('Failed to send embed', 'error');
@@ -688,19 +807,15 @@ async function runDiagnostics() {
         const debugR = await fetch('/api/debug');
         const debug = await debugR.json();
         out.textContent += '\n=== /api/debug ===\n' + JSON.stringify(debug, null, 2) + '\n\n';
-
         const channelsR = await fetch('/api/guild/channels');
         const channels = await channelsR.json();
         out.textContent += '=== /api/guild/channels ===\n' + JSON.stringify(channels, null, 2) + '\n';
-
         const rolesR = await fetch('/api/guild/roles');
         const roles = await rolesR.json();
         out.textContent += '\n=== /api/guild/roles ===\n' + JSON.stringify(roles, null, 2) + '\n';
-
         const statsR = await fetch('/api/stats');
         const stats = await statsR.json();
         out.textContent += '\n=== /api/stats ===\n' + JSON.stringify(stats, null, 2) + '\n';
-
         out.textContent += '\n--- Checking DOM elements ---\n';
         ['ovWelcomeChannel','welChannel','leaveChannel','embedChannel','msgChannel','panelChannel','ovLogChannel','ovAutoRole','tktCat','tktRole'].forEach(id => {
             const el = document.getElementById(id);
@@ -728,23 +843,18 @@ setInterval(loadAutoResponder, 15000);
 setInterval(loadTickets, 15000);
 updatePreview();
 
-// Retry dropdowns if bot wasn't ready yet (retry every 5s, up to 6 times)
 let retryCount = 0;
 const retryInterval = setInterval(async () => {
     retryCount++;
     const panelSel = document.getElementById('panelChannel');
-    // If panelChannel has more than 1 option (the default), it means data loaded
     if (panelSel && panelSel.options.length > 1) {
         clearInterval(retryInterval);
-        console.log('Dropdowns populated after retry', retryCount);
         return;
     }
     if (retryCount >= 6) {
         clearInterval(retryInterval);
-        console.warn('Gave up retrying dropdowns after 30s');
         return;
     }
-    console.log('Retrying dropdowns (attempt', retryCount, ')...');
     const r = await fetch('/api/stats').catch(() => null);
     if (r && r.ok) {
         const d = await r.json().catch(() => null);

@@ -234,7 +234,7 @@ def api_welcomer():
             avatar_y=int(request.form["avatar_y"]) if request.form.get("avatar_y") else None,
             avatar_size=int(request.form["avatar_size"]) if request.form.get("avatar_size") else None,
         )
-        return redirect(url_for("index"))
+        return jsonify({"ok": True})
     s = _settings()
     return jsonify({
         "welcome_enabled": s.welcome_enabled,
@@ -247,6 +247,7 @@ def api_welcomer():
         "avatar_y": s.avatar_y or 86,
         "avatar_size": s.avatar_size or 128,
     })
+
 
 
 @app.route("/api/welcomer/preview")
@@ -314,7 +315,7 @@ def api_autoresponder_add():
             sess.commit()
         finally:
             sess.close()
-    return redirect(url_for("index"))
+    return jsonify({"ok": True})
 
 
 @app.route("/api/autoresponder/delete/<int:rid>", methods=["POST"])
@@ -326,7 +327,7 @@ def api_autoresponder_delete(rid):
         sess.commit()
     finally:
         sess.close()
-    return redirect(url_for("index"))
+    return jsonify({"ok": True})
 
 
 # ---- Module 3: AutoMod ----
@@ -343,7 +344,7 @@ def api_automod():
         automod_penalty=request.form.get("automod_penalty", "mute"),
         automod_bypass_roles=bypass_ids,
     )
-    return redirect(url_for("index"))
+    return jsonify({"ok": True})
 
 
 # ---- Module 4: Embed Sender ----
@@ -399,7 +400,7 @@ def api_tickets_settings():
             ticket_category_id=int(request.form["ticket_category_id"]) if request.form.get("ticket_category_id") else None,
             ticket_support_role_id=int(request.form["ticket_support_role_id"]) if request.form.get("ticket_support_role_id") else None,
         )
-        return redirect(url_for("index"))
+        return jsonify({"ok": True})
     s = _settings()
     return jsonify({
         "ticket_enabled": s.ticket_enabled,
@@ -492,7 +493,7 @@ def update():
         log_channel_id=int(request.form.get("log_channel")) if request.form.get("log_channel") else None,
         auto_role_id=int(request.form.get("auto_role")) if request.form.get("auto_role") else None,
     )
-    return redirect(url_for("index"))
+    return jsonify({"ok": True})
 
 
 def run_dashboard(host="127.0.0.1", port=5000, debug=False):
