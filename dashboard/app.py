@@ -39,17 +39,10 @@ def login_required(f):
     return decorated
 
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login")
 def login():
     if session.get("logged_in"):
         return redirect(url_for("index"))
-    if request.method == "POST":
-        uid = request.form.get("user_id", "")
-        if uid.isdigit() and int(uid) in ADMIN_IDS:
-            session["logged_in"] = True
-            session["user_id"] = int(uid)
-            return redirect(url_for("index"))
-        return render_template("login.html", error="Invalid admin ID")
     discord_auth_url = f"https://discord.com/api/oauth2/authorize?client_id={DISCORD_CLIENT_ID}&redirect_uri={DISCORD_REDIRECT_URI}&response_type=code&scope=identify"
     return render_template("login.html", discord_auth_url=discord_auth_url)
 
