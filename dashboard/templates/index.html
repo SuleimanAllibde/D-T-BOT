@@ -794,19 +794,6 @@ async function sendMessage() {
     else showToast('❌ Failed to send message', 'error');
 }
 
-async function sendMessage() {
-    const sel = document.getElementById('msgChannel');
-    const content = document.getElementById('msgContent').value.trim();
-    if (!sel.value) { showToast('Please select a channel', 'error'); return; }
-    if (!content) { showToast('Please enter a message', 'error'); return; }
-    const form = new FormData();
-    form.append('channel_id', sel.value);
-    form.append('content', content);
-    const r = await fetch('/api/message/send', { method: 'POST', body: form });
-    if (r.ok) { showToast('Message sent!', 'success'); document.getElementById('msgContent').value = ''; }
-    else showToast('Failed to send message', 'error');
-}
-
 // ---- Diagnostics ----
 async function runDiagnostics() {
     const out = document.getElementById('diagOutput');
