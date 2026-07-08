@@ -57,7 +57,8 @@ class Bot(commands.Bot):
 
     def send_embed_to_channel(
         self, channel_id: int, title: str, description: str,
-        color: str = "#5865F2", thumbnail_url: str = "", footer: str = ""
+        color: str = "#5865F2", thumbnail_url: str = "", footer: str = "",
+        file_path: str = ""
     ):
         async def _send():
             try:
@@ -79,7 +80,10 @@ class Bot(commands.Bot):
                     embed.set_thumbnail(url=thumbnail_url)
                 if footer:
                     embed.set_footer(text=footer)
-                await channel.send(embed=embed)
+                kwargs = {"embed": embed}
+                if file_path:
+                    kwargs["file"] = discord.File(file_path)
+                await channel.send(**kwargs)
                 print(f"[Embed] Sent to #{channel.name}")
             except Exception as e:
                 print(f"[Embed] ERROR: {e}")
@@ -88,14 +92,17 @@ class Bot(commands.Bot):
         except Exception as e:
             print(f"[Embed] run_coroutine_threadsafe error: {e}")
 
-    def send_message_to_channel(self, channel_id: int, content: str):
+    def send_message_to_channel(self, channel_id: int, content: str, file_path: str = ""):
         async def _send():
             try:
                 channel = self.get_channel(channel_id)
                 if not channel:
                     print(f"[Message] ERROR: Channel {channel_id} not found")
                     return
-                await channel.send(content=content)
+                kwargs = {"content": content}
+                if file_path:
+                    kwargs["file"] = discord.File(file_path)
+                await channel.send(**kwargs)
                 print(f"[Message] Sent to #{channel.name}")
             except Exception as e:
                 print(f"[Message] ERROR: {e}")

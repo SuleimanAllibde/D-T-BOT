@@ -384,8 +384,14 @@ def api_embed_send():
     footer = request.form.get("footer", "")
     if not channel_id or not channel_id.isdigit():
         return jsonify({"error": "Invalid channel ID"}), 400
+    file_path = ""
+    if "file" in request.files:
+        f = request.files["file"]
+        if f.filename:
+            file_path = os.path.join(UPLOAD_DIR, f.filename)
+            f.save(file_path)
     bot.send_embed_to_channel(
-        int(channel_id), title, description, color, thumbnail, footer
+        int(channel_id), title, description, color, thumbnail, footer, file_path
     )
     return jsonify({"success": True})
 
@@ -402,7 +408,13 @@ def api_message_send():
         return jsonify({"error": "Invalid channel ID"}), 400
     if not content:
         return jsonify({"error": "Message content is empty"}), 400
-    bot.send_message_to_channel(int(channel_id), content)
+    file_path = ""
+    if "file" in request.files:
+        f = request.files["file"]
+        if f.filename:
+            file_path = os.path.join(UPLOAD_DIR, f.filename)
+            f.save(file_path)
+    bot.send_message_to_channel(int(channel_id), content, file_path)
     return jsonify({"success": True})
 
 

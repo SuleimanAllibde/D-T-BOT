@@ -248,6 +248,10 @@ function showToast(msg, type) {
             <label>Message Content</label>
             <textarea id="msgContent" rows="4" placeholder="Type your message here..."></textarea>
         </div>
+        <div class="form-group">
+            <label>Attachment (image/file)</label>
+            <input type="file" id="msgFile" accept="image/*,.pdf,.zip,.txt">
+        </div>
         <button onclick="sendMessage()" class="btn btn-primary">Send Message</button>
     </div>
     <div class="card">
@@ -290,6 +294,10 @@ function showToast(msg, type) {
                 </div>
                 <img id="previewThumb" class="embed-thumb" style="display:none" alt="thumb">
             </div>
+        </div>
+        <div class="form-group">
+            <label>Attachment (image/file)</label>
+            <input type="file" id="embedFile" accept="image/*,.pdf,.zip,.txt">
         </div>
         <button onclick="sendEmbed()" class="btn btn-primary">Send Embed</button>
     </div>
@@ -755,18 +763,35 @@ document.getElementById('embedThumb').addEventListener('input', updatePreview);
 document.getElementById('embedFooter').addEventListener('input', updatePreview);
 
 async function sendEmbed() {
-    const form = new FormData();
     const sel = document.getElementById('embedChannel');
+    if (!sel.value) { showToast('Please select a channel', 'error'); return; }
+    const form = new FormData();
     form.append('channel_id', sel.value);
     form.append('title', document.getElementById('embedTitle').value);
     form.append('description', document.getElementById('embedDesc').value);
     form.append('color', document.getElementById('embedColor').value);
     form.append('thumbnail', document.getElementById('embedThumb').value);
     form.append('footer', document.getElementById('embedFooter').value);
-    if (!sel.value) { showToast('Please select a channel', 'error'); return; }
+    const fileInput = document.getElementById('embedFile');
+    if (fileInput.files.length) form.append('file', fileInput.files[0]);
     const r = await fetch('/api/embed/send', { method: 'POST', body: form });
-    if (r.ok) showToast('Embed sent!', 'success');
-    else showToast('Failed to send embed', 'error');
+    if (r.ok) { showToast('✅ Embed sent!', 'success'); fileInput.value = ''; }
+    else showToast('❌ Failed to send embed', 'error');
+}
+
+async function sendMessage() {
+    const sel = document.getElementById('msgChannel');
+    if (!sel.value) { showToast('Please select a channel', 'error'); return; }
+    const content = document.getElementById('msgContent').value.trim();
+    if (!content) { showToast('Message content is empty', 'error'); return; }
+    const form = new FormData();
+    form.append('channel_id', sel.value);
+    form.append('content', content);
+    const fileInput = document.getElementById('msgFile');
+    if (fileInput.files.length) form.append('file', fileInput.files[0]);
+    const r = await fetch('/api/message/send', { method: 'POST', body: form });
+    if (r.ok) { showToast('✅ Message sent!', 'success'); fileInput.value = ''; }
+    else showToast('❌ Failed to send message', 'error');
 }
 
 async function sendMessage() {
