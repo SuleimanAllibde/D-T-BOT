@@ -59,6 +59,7 @@ body {
     display: flex; align-items: center; justify-content: center;
     font-size: 16px; font-weight: 800; color: #fff;
 }
+.sidebar-logo-img { width: 36px; height: 36px; border-radius: 10px; object-fit: cover; }
 .sidebar-brand {
     font-size: 15px; font-weight: 700; color: var(--text-primary);
 }
