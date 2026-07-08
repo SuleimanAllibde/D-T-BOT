@@ -1,4 +1,6 @@
 import asyncio
+import io
+import os
 
 import discord
 from discord.ext import commands
@@ -82,9 +84,10 @@ class Bot(commands.Bot):
                     embed.set_footer(text=footer)
                 kwargs = {"embed": embed}
                 if file_path:
-                    import os
                     if os.path.exists(file_path):
-                        kwargs["file"] = discord.File(file_path)
+                        with open(file_path, 'rb') as fh:
+                            data = fh.read()
+                        kwargs["file"] = discord.File(io.BytesIO(data), filename=os.path.basename(file_path))
                         print(f"[Embed] Attaching file: {file_path}")
                     else:
                         print(f"[Embed] File not found: {file_path}")
@@ -106,9 +109,10 @@ class Bot(commands.Bot):
                     return
                 kwargs = {"content": content}
                 if file_path:
-                    import os
                     if os.path.exists(file_path):
-                        kwargs["file"] = discord.File(file_path)
+                        with open(file_path, 'rb') as fh:
+                            data = fh.read()
+                        kwargs["file"] = discord.File(io.BytesIO(data), filename=os.path.basename(file_path))
                         print(f"[Message] Attaching file: {file_path}")
                     else:
                         print(f"[Message] File not found: {file_path}")
