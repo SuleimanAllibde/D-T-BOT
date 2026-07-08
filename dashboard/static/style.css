@@ -82,6 +82,7 @@ body {
 .nav-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 .nav-item.active { background: var(--accent); color: #fff; }
 .nav-icon { font-size: 18px; width: 24px; text-align: center; }
+.nav-icon img.sidebar-icon { width: 20px; height: 20px; vertical-align: middle; object-fit: contain; }
 .sidebar-footer {
     padding: 16px;
     border-top: 1px solid var(--border);

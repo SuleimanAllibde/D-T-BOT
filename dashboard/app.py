@@ -310,6 +310,13 @@ def api_bg():
     return jsonify({"error": "Not found"}), 404
 
 
+PICS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "pics")
+
+@app.route("/pics/<path:filename>")
+def api_pics(filename):
+    return send_from_directory(PICS_DIR, filename)
+
+
 # ---- Module 2: Auto-Responder ----
 
 @app.route("/api/autoresponder", methods=["GET"])
