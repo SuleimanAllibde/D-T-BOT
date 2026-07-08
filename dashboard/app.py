@@ -387,8 +387,11 @@ def api_embed_send():
     file_path = ""
     if "file" in request.files:
         f = request.files["file"]
-        if f.filename:
-            file_path = os.path.join(UPLOAD_DIR, f.filename)
+        if f and f.filename:
+            import time, re
+            name = re.sub(r'[^\w\.\-]', '_', f.filename)
+            name = f"{int(time.time())}_{name}"
+            file_path = os.path.join(UPLOAD_DIR, name)
             f.save(file_path)
     bot.send_embed_to_channel(
         int(channel_id), title, description, color, thumbnail, footer, file_path
@@ -411,8 +414,11 @@ def api_message_send():
     file_path = ""
     if "file" in request.files:
         f = request.files["file"]
-        if f.filename:
-            file_path = os.path.join(UPLOAD_DIR, f.filename)
+        if f and f.filename:
+            import time, re
+            name = re.sub(r'[^\w\.\-]', '_', f.filename)
+            name = f"{int(time.time())}_{name}"
+            file_path = os.path.join(UPLOAD_DIR, name)
             f.save(file_path)
     bot.send_message_to_channel(int(channel_id), content, file_path)
     return jsonify({"success": True})

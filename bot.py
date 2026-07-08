@@ -82,7 +82,12 @@ class Bot(commands.Bot):
                     embed.set_footer(text=footer)
                 kwargs = {"embed": embed}
                 if file_path:
-                    kwargs["file"] = discord.File(file_path)
+                    import os
+                    if os.path.exists(file_path):
+                        kwargs["file"] = discord.File(file_path)
+                        print(f"[Embed] Attaching file: {file_path}")
+                    else:
+                        print(f"[Embed] File not found: {file_path}")
                 await channel.send(**kwargs)
                 print(f"[Embed] Sent to #{channel.name}")
             except Exception as e:
@@ -101,7 +106,12 @@ class Bot(commands.Bot):
                     return
                 kwargs = {"content": content}
                 if file_path:
-                    kwargs["file"] = discord.File(file_path)
+                    import os
+                    if os.path.exists(file_path):
+                        kwargs["file"] = discord.File(file_path)
+                        print(f"[Message] Attaching file: {file_path}")
+                    else:
+                        print(f"[Message] File not found: {file_path}")
                 await channel.send(**kwargs)
                 print(f"[Message] Sent to #{channel.name}")
             except Exception as e:
