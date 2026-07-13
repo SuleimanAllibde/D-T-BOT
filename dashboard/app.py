@@ -416,7 +416,8 @@ def api_message_send():
     content = request.form.get("content", "").strip()
     if not channel_id or not channel_id.isdigit():
         return jsonify({"error": "Invalid channel ID"}), 400
-    if not content:
+    has_file = "file" in request.files and request.files["file"] and request.files["file"].filename
+    if not content and not has_file:
         return jsonify({"error": "Message content is empty"}), 400
     file_path = ""
     if "file" in request.files:

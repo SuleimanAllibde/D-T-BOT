@@ -783,11 +783,11 @@ async function sendMessage() {
     const sel = document.getElementById('msgChannel');
     if (!sel.value) { showToast('Please select a channel', 'error'); return; }
     const content = document.getElementById('msgContent').value.trim();
-    if (!content) { showToast('Message content is empty', 'error'); return; }
+    const fileInput = document.getElementById('msgFile');
+    if (!content && !fileInput.files.length) { showToast('Enter a message or attach a file', 'error'); return; }
     const form = new FormData();
     form.append('channel_id', sel.value);
     form.append('content', content);
-    const fileInput = document.getElementById('msgFile');
     if (fileInput.files.length) form.append('file', fileInput.files[0]);
     const r = await fetch('/api/message/send', { method: 'POST', body: form });
     if (r.ok) { showToast('✅ Message sent!', 'success'); fileInput.value = ''; }
