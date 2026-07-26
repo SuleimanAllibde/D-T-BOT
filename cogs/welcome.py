@@ -13,6 +13,15 @@ class Welcome(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         settings = self._get_settings(member.guild.id)
+
+        if settings and settings.auto_role_id:
+            role = member.guild.get_role(settings.auto_role_id)
+            if role:
+                try:
+                    await member.add_roles(role, reason="Auto-role on join")
+                except discord.Forbidden:
+                    pass
+
         if not settings or not settings.welcome_enabled:
             return
         channel = member.guild.get_channel(settings.welcome_channel_id) if settings.welcome_channel_id else None
@@ -38,14 +47,6 @@ class Welcome(commands.Cog):
         msg = self._format(msg, member)
 
         await channel.send(content=msg, file=discord.File(image, "welcome.jpg"))
-
-        if settings.auto_role_id:
-            role = member.guild.get_role(settings.auto_role_id)
-            if role:
-                try:
-                    await member.add_roles(role, reason="Auto-role on join")
-                except discord.Forbidden:
-                    pass
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
