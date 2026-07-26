@@ -12,7 +12,7 @@ class ReactionRoleDropdown(discord.ui.Select):
             discord.SelectOption(label=r.name, value=str(r.id))
             for r in role_map.values() if r
         ]
-        super().__init__(placeholder="Choose a role...", options=options, min_values=1, max_values=1)
+        super().__init__(placeholder="Choose a role...", options=options, min_values=1, max_values=1, custom_id="dt_reaction_role_select")
 
     async def callback(self, interaction: discord.Interaction):
         role_id = int(self.values[0])
@@ -26,6 +26,13 @@ class ReactionRoleDropdown(discord.ui.Select):
         else:
             await interaction.user.add_roles(role, reason="Reaction role added")
             await interaction.response.send_message(f"Added {role.mention}.", ephemeral=True)
+
+
+class ReactionRoleView(discord.ui.View):
+    def __init__(self, role_map: dict = None):
+        super().__init__(timeout=None)
+        if role_map:
+            self.add_item(ReactionRoleDropdown(role_map))
 
 
 class AutoRole(commands.Cog):
@@ -65,10 +72,9 @@ class AutoRole(commands.Cog):
     async def reaction_role(self, interaction: discord.Interaction, role1: discord.Role, role2: discord.Role = None, role3: discord.Role = None, role4: discord.Role = None, role5: discord.Role = None):
         roles = {r.name: r for r in [role1, role2, role3, role4, role5] if r is not None}
         embed = info("Reaction Roles", "Select a role from the dropdown below.\n\n" + "\n".join(f"• {r.mention}" for r in roles.values()))
-        view = discord.ui.View(timeout=None)
-        view.add_item(ReactionRoleDropdown(roles))
-        await interaction.channel.send(embed=embed, view=view)
+        view = ReactionRoleView(roles)
         await interaction.response.send_message("Reaction role panel created!", ephemeral=True)
+        await interaction.channel.send(embed=embed, view=view)
 
 
 async def setup(bot: commands.Bot):

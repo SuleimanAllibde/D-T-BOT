@@ -590,6 +590,7 @@ async function loadTickets() {
 }
 
 async function sendTicketPanel() {
+    if (!getSettingVal('tktEnabled')) { showToast('Enable the ticket system first', 'error'); return; }
     const ch = document.getElementById('panelChannel').value;
     if (!ch) { showToast('Select a channel', 'error'); return; }
     const form = new FormData();

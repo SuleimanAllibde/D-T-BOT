@@ -36,10 +36,12 @@ class Bot(commands.Bot):
         self.tree.copy_global_to(guild=guild)
         await self.tree.sync(guild=guild)
 
-        # Register persistent views for ticket system
+        # Register persistent views for ticket system and reaction roles
         from cogs.tickets import TicketView, TicketCloseView
+        from cogs.autorole import ReactionRoleView
         self.add_view(TicketView())
         self.add_view(TicketCloseView())
+        self.add_view(ReactionRoleView())
 
     async def start(self, *args, **kwargs):
         # Fix: capture the actual running event loop (asyncio.run() creates a new one)
@@ -171,15 +173,20 @@ class Bot(commands.Bot):
                     panel_title = settings.ticket_panel_title or "🎫 Support Tickets"
                     panel_desc = settings.ticket_panel_desc or "Click the button below to open a ticket."
                     button_text = settings.ticket_button_text or "Open Ticket"
+                    embed_color = settings.ticket_embed_color or "#5865F2"
                     old_msg_id = settings.ticket_panel_message_id
                 finally:
                     sess.close()
 
                 from cogs.tickets import TicketView
+                try:
+                    hex_color = int(embed_color.lstrip("#"), 16)
+                except ValueError:
+                    hex_color = 0x5865F2
                 embed = discord.Embed(
                     title=panel_title,
                     description=panel_desc,
-                    color=0x5865F2,
+                    color=hex_color,
                 )
                 embed.set_footer(text="D&T Server Support")
 
@@ -251,14 +258,13 @@ class Bot(commands.Bot):
                 if not role_map:
                     print("[RolePanel] ERROR: No valid roles found")
                     return
-                from cogs.autorole import ReactionRoleDropdown
+                from cogs.autorole import ReactionRoleView
                 embed = discord.Embed(
                     title="Self Roles",
                     description="Select a role from the dropdown below.\n\n" + "\n".join(f"• {r.mention}" for r in role_map.values()),
                     color=0x5865F2,
                 )
-                view = discord.ui.View(timeout=None)
-                view.add_item(ReactionRoleDropdown(role_map))
+                view = ReactionRoleView(role_map)
                 await channel.send(embed=embed, view=view)
                 print(f"[RolePanel] Sent to #{channel.name} with {len(role_map)} roles")
             except Exception as e:
