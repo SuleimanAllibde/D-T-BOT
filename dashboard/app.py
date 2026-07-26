@@ -555,11 +555,18 @@ def api_uploads(filename):
 @app.route("/update", methods=["POST"])
 @login_required
 def update():
-    _update_settings(
-        welcome_channel_id=int(request.form.get("welcome_channel")) if request.form.get("welcome_channel") else None,
-        log_channel_id=int(request.form.get("log_channel")) if request.form.get("log_channel") else None,
-        auto_role_id=int(request.form.get("auto_role")) if request.form.get("auto_role") else None,
-    )
+    updates = {}
+    if "auto_role" in request.form:
+        val = request.form.get("auto_role")
+        updates["auto_role_id"] = int(val) if val else None
+    if "welcome_channel" in request.form:
+        val = request.form.get("welcome_channel")
+        updates["welcome_channel_id"] = int(val) if val else None
+    if "log_channel" in request.form:
+        val = request.form.get("log_channel")
+        updates["log_channel_id"] = int(val) if val else None
+    if updates:
+        _update_settings(**updates)
     return jsonify({"ok": True})
 
 
