@@ -86,24 +86,6 @@ function showToast(msg, type) {
     </div>
 
     <div class="card">
-        <h2>Quick Settings</h2>
-        <div class="form-row">
-            <div class="form-group">
-                <label>Welcome Channel</label>
-                <select id="ovWelcomeChannel" class="form-input" data-setting="welcome_channel_id"></select>
-            </div>
-            <div class="form-group">
-                <label>Log Channel</label>
-                <select id="ovLogChannel" class="form-input" data-setting="log_channel_id"></select>
-            </div>
-            <div class="form-group">
-                <label>Auto-Role</label>
-                <select id="ovAutoRole" class="form-input" data-setting="auto_role_id"></select>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
         <h2>Quick Commands</h2>
         <ul class="command-list">
             <li><code>/setup-tickets</code> — Create ticket panel</li>
@@ -491,9 +473,6 @@ async function populateAllDropdowns(stats) {
         if (!selectedVal && prev) sel.value = prev;
     }
 
-    fillSelect('ovWelcomeChannel', channels, stats.welcome_channel_id, '— Select channel —');
-    fillSelect('ovLogChannel', channels, stats.log_channel_id, '— Select channel —');
-    fillSelect('ovAutoRole', roles, stats.auto_role_id, '— None —');
     fillSelect('welChannel', channels, stats.welcome_channel_id, '— Select channel —');
     fillSelect('leaveChannel', channels, stats.leave_channel_id, '— Select channel —');
     fillSelect('msgChannel', channels, null, '— Select channel —');
@@ -836,17 +815,11 @@ async function saveAll() {
     tktForm.append('ticket_category_id', getSettingVal('tktCat') || '');
     tktForm.append('ticket_support_role_id', getSettingVal('tktRole') || '');
 
-    const ovForm = new FormData();
-    ovForm.append('welcome_channel', getSettingVal('ovWelcomeChannel') || '');
-    ovForm.append('log_channel', getSettingVal('ovLogChannel') || '');
-    ovForm.append('auto_role', getSettingVal('ovAutoRole') || '');
-
     try {
         const r1 = await fetch('/api/welcomer', { method: 'POST', body: welForm });
         const r2 = await fetch('/api/automod', { method: 'POST', body: amForm });
         const r3 = await fetch('/api/tickets/settings', { method: 'POST', body: tktForm });
-        const r4 = await fetch('/update', { method: 'POST', body: ovForm });
-        if (r1.ok && r2.ok && r3.ok && r4.ok) {
+        if (r1.ok && r2.ok && r3.ok) {
             showSaved();
         } else {
             showToast('❌ Some settings failed to save', 'error');
@@ -877,7 +850,7 @@ async function runDiagnostics() {
         const stats = await statsR.json();
         out.textContent += '\n=== /api/stats ===\n' + JSON.stringify(stats, null, 2) + '\n';
         out.textContent += '\n--- Checking DOM elements ---\n';
-        ['ovWelcomeChannel','welChannel','leaveChannel','embedChannel','msgChannel','panelChannel','ovLogChannel','ovAutoRole','tktCat','tktRole'].forEach(id => {
+        ['welChannel','leaveChannel','embedChannel','msgChannel','panelChannel','tktCat','tktRole','roleAutoRole','rolePanelChannel'].forEach(id => {
             const el = document.getElementById(id);
             out.textContent += id + ': ' + (el ? 'FOUND (' + el.options.length + ' options)' : 'MISSING') + '\n';
         });
