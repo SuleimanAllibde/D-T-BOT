@@ -12,15 +12,25 @@ class Welcome(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
+        import logging
+        log = logging.getLogger("welcome")
         settings = self._get_settings(member.guild.id)
+        log.warning(f"[on_member_join] {member} joined guild={member.guild.id}")
+        log.warning(f"[on_member_join] settings.auto_role_id={settings.auto_role_id if settings else 'NO SETTINGS'}")
 
         if settings and settings.auto_role_id:
             role = member.guild.get_role(settings.auto_role_id)
+            log.warning(f"[on_member_join] role found={role} for id={settings.auto_role_id}")
             if role:
                 try:
                     await member.add_roles(role, reason="Auto-role on join")
+                    log.warning(f"[on_member_join] Auto-role {role.name} assigned to {member}")
                 except discord.Forbidden:
-                    pass
+                    log.warning(f"[on_member_join] Forbidden to assign role {role.name} to {member}")
+                except Exception as e:
+                    log.warning(f"[on_member_join] Error assigning role: {e}")
+            else:
+                log.warning(f"[on_member_join] Role with id={settings.auto_role_id} NOT FOUND in guild")
 
         if not settings or not settings.welcome_enabled:
             return

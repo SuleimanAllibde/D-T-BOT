@@ -555,10 +555,13 @@ def api_uploads(filename):
 @app.route("/update", methods=["POST"])
 @login_required
 def update():
+    import logging as _log
+    _log.getLogger("dashboard").warning(f"[/update] form keys={list(request.form.keys())}")
     updates = {}
     if "auto_role" in request.form:
         val = request.form.get("auto_role")
         updates["auto_role_id"] = int(val) if val else None
+        _log.getLogger("dashboard").warning(f"[/update] auto_role_id={updates['auto_role_id']}")
     if "welcome_channel" in request.form:
         val = request.form.get("welcome_channel")
         updates["welcome_channel_id"] = int(val) if val else None
@@ -567,6 +570,8 @@ def update():
         updates["log_channel_id"] = int(val) if val else None
     if updates:
         _update_settings(**updates)
+    s = _settings()
+    _log.getLogger("dashboard").warning(f"[/update] DB auto_role_id now={s.auto_role_id}")
     return jsonify({"ok": True})
 
 
