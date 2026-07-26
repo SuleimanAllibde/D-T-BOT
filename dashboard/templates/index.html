@@ -708,8 +708,8 @@ function updateCanvasPosition() {
     const scale = getCanvasScale();
     const avatar = document.getElementById('canvasAvatar');
     const handle = document.getElementById('resizeHandle');
-    avatar.style.left = (x * scale - size * scale / 2) + 'px';
-    avatar.style.top = (y * scale - size * scale / 2) + 'px';
+    avatar.style.left = (x * scale) + 'px';
+    avatar.style.top = (y * scale) + 'px';
     avatar.style.width = (size * scale) + 'px';
     avatar.style.height = (size * scale) + 'px';
     document.getElementById('dispX').textContent = x;
