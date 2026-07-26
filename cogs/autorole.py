@@ -12,6 +12,8 @@ class ReactionRoleDropdown(discord.ui.Select):
             discord.SelectOption(label=r.name, value=str(r.id))
             for r in role_map.values() if r
         ]
+        if not options:
+            options = [discord.SelectOption(label="placeholder", value="0")]
         super().__init__(placeholder="Choose a role...", options=options, min_values=1, max_values=1, custom_id="dt_reaction_role_select")
 
     async def callback(self, interaction: discord.Interaction):
@@ -79,3 +81,9 @@ class AutoRole(commands.Cog):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AutoRole(bot))
+
+
+def _register_persistent_view(bot):
+    view = discord.ui.View(timeout=None)
+    view.add_item(ReactionRoleDropdown(role_map={}))
+    bot.add_view(view)

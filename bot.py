@@ -38,10 +38,14 @@ class Bot(commands.Bot):
 
         # Register persistent views for ticket system and reaction roles
         from cogs.tickets import TicketView, TicketCloseView
-        from cogs.autorole import ReactionRoleView
         self.add_view(TicketView())
         self.add_view(TicketCloseView())
-        self.add_view(ReactionRoleView())
+        try:
+            from cogs.autorole import _register_persistent_view
+            _register_persistent_view(self)
+            print("[Setup] Registered persistent ReactionRole view")
+        except Exception as e:
+            print(f"[Setup] Could not register ReactionRoleView: {e}")
 
     async def start(self, *args, **kwargs):
         # Fix: capture the actual running event loop (asyncio.run() creates a new one)
