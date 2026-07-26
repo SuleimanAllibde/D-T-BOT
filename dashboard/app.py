@@ -503,6 +503,25 @@ def api_tickets_close(channel_id):
     return jsonify({"success": True})
 
 
+# ---- Module 6: Roles ----
+
+@app.route("/api/roles/send-panel", methods=["POST"])
+@login_required
+def api_roles_send_panel():
+    bot = bot_state["bot"]
+    if not bot:
+        return jsonify({"error": "Bot offline"}), 503
+    channel_id = request.form.get("channel_id", "").strip()
+    role_ids = request.form.getlist("role_ids")
+    if not channel_id or not channel_id.isdigit():
+        return jsonify({"error": "Invalid channel ID"}), 400
+    valid_ids = [r for r in role_ids if r.isdigit()]
+    if not valid_ids:
+        return jsonify({"error": "No valid roles selected"}), 400
+    bot.send_role_panel(int(channel_id), valid_ids)
+    return jsonify({"success": True})
+
+
 # ---- Logs ----
 
 @app.route("/api/logs/recent")

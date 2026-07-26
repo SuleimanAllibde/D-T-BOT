@@ -235,6 +235,39 @@ function showToast(msg, type) {
     </div>
 </div>
 
+<!-- ===== ROLES ===== -->
+<div id="tab-roles" class="tab-panel">
+    <h1>Roles Manager</h1>
+
+    <!-- Auto Role -->
+    <div class="card">
+        <h2>Auto Role</h2>
+        <p style="color:var(--text-secondary);font-size:13px;margin:0 0 12px">Assigns this role automatically to new members when they join.</p>
+        <div class="form-row">
+            <div class="form-group" style="flex:1">
+                <label>Role</label>
+                <select id="roleAutoRole" class="form-input"></select>
+            </div>
+        </div>
+        <button onclick="saveAutoRole()" class="btn btn-primary" style="margin-top:12px">Save Auto Role</button>
+    </div>
+
+    <!-- Self Roles (Reaction Roles) -->
+    <div class="card">
+        <h2>Self Roles Panel</h2>
+        <p style="color:var(--text-secondary);font-size:13px;margin:0 0 12px">Send a dropdown panel to a channel where members can pick roles themselves.</p>
+        <div class="form-group">
+            <label>Channel</label>
+            <select id="rolePanelChannel" class="form-input"></select>
+        </div>
+        <div class="form-group">
+            <label>Roles to include</label>
+            <div id="rolePanelRoles" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
+        </div>
+        <button onclick="sendSelfRolePanel()" class="btn btn-primary" style="margin-top:12px">Send Panel</button>
+    </div>
+</div>
+
 <!-- ===== SENDER ===== -->
 <div id="tab-embed" class="tab-panel">
     <h1>Message &amp; Embed Sender</h1>
@@ -397,376 +430,199 @@ function showSaved() {
     setTimeout(() => document.getElementById('saveBar').classList.remove('visible'), 2000);
 }
 
-async function saveAll() {
-    showSaving();
+// ---- Dropdown Population ----
 
-    // Welcomer block
-    const welForm = new FormData();
-    welForm.append('welcome_enabled', getSettingVal('welEnabled') ? 'on' : '');
-    welForm.append('welcome_channel_id', getSettingVal('welChannel') || '');
-    welForm.append('welcome_message', getSettingVal('welMessage') || '');
-    welForm.append('leave_enabled', getSettingVal('leaveEnabled') ? 'on' : '');
-    welForm.append('leave_channel_id', getSettingVal('leaveChannel') || '');
-    welForm.append('leave_message', getSettingVal('leaveMessage') || '');
-    welForm.append('avatar_x', getSettingVal('welAvatarX') || '');
-    welForm.append('avatar_y', getSettingVal('welAvatarY') || '');
-    welForm.append('avatar_size', getSettingVal('welAvatarSize') || '');
-
-    // AutoMod block
-    const amForm = new FormData();
-    amForm.append('anti_bad_words', getSettingVal('abw') ? 'on' : '');
-    amForm.append('anti_links', getSettingVal('al') ? 'on' : '');
-    amForm.append('anti_spam', getSettingVal('as') ? 'on' : '');
-    amForm.append('automod_penalty', getSettingVal('amPenalty') || 'mute');
-    amForm.append('automod_bypass_roles', getSettingVal('amBypass') || '');
-
-    // Tickets block
-    const tktForm = new FormData();
-    tktForm.append('ticket_enabled', getSettingVal('tktEnabled') ? 'on' : '');
-    tktForm.append('ticket_panel_title', getSettingVal('tktTitle') || '');
-    tktForm.append('ticket_panel_desc', getSettingVal('tktDesc') || '');
-    tktForm.append('ticket_button_text', getSettingVal('tktBtn') || '');
-    tktForm.append('ticket_embed_color', getSettingVal('tktColor') || '#5865F2');
-    tktForm.append('ticket_category_id', getSettingVal('tktCat') || '');
-    tktForm.append('ticket_support_role_id', getSettingVal('tktRole') || '');
-
-    // Overview block
-    const ovForm = new FormData();
-    ovForm.append('welcome_channel', getSettingVal('ovWelcomeChannel') || '');
-    ovForm.append('log_channel', getSettingVal('ovLogChannel') || '');
-    ovForm.append('auto_role', getSettingVal('ovAutoRole') || '');
-
+async function populateSelect(url, selectId, selectedValue, placeholder) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    sel.innerHTML = '';
+    if (placeholder) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = placeholder;
+        sel.appendChild(opt);
+    }
     try {
-        const r1 = await fetch('/api/welcomer', { method: 'POST', body: welForm });
-        const r2 = await fetch('/api/automod', { method: 'POST', body: amForm });
-        const r3 = await fetch('/api/tickets/settings', { method: 'POST', body: tktForm });
-        const r4 = await fetch('/update', { method: 'POST', body: ovForm });
-        if (r1.ok && r2.ok && r3.ok && r4.ok) {
-            showSaved();
-        } else {
-            showToast('❌ Some settings failed to save', 'error');
-            showSaved();
+        const r = await fetch(url);
+        const data = await r.json();
+        data.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.id;
+            opt.textContent = item.name;
+            if (String(item.id) === String(selectedValue)) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    } catch(e) {
+        console.error('populateSelect error:', e);
+    }
+}
+
+async function populateCategorySelect(url, selectId, selectedValue) {
+    await populateSelect(url, selectId, selectedValue, '— None —');
+}
+
+async function populateRoleSelect(url, selectId, selectedValue) {
+    await populateSelect(url, selectId, selectedValue, '— None —');
+}
+
+async function populateAllDropdowns(stats) {
+    const channels = await fetch('/api/guild/channels').then(r => r.json()).catch(() => []);
+    const roles = await fetch('/api/guild/roles').then(r => r.json()).catch(() => []);
+    const categories = await fetch('/api/guild/categories').then(r => r.json()).catch(() => []);
+
+    function fillSelect(selectId, items, selectedVal, placeholder) {
+        const sel = document.getElementById(selectId);
+        if (!sel) return;
+        const prev = sel.value;
+        sel.innerHTML = '';
+        if (placeholder) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = placeholder;
+            sel.appendChild(opt);
         }
-    } catch(e) {
-        showToast('❌ Save failed: ' + e.message, 'error');
-        showSaved();
-    }
-}
-
-// Auto-save with debounce
-document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('[data-setting]').forEach(el => {
-        const triggerSave = () => {
-            clearTimeout(_saveTimer);
-            _saveTimer = setTimeout(saveAll, 1500);
-        };
-        el.addEventListener('change', triggerSave);
-        el.addEventListener('input', triggerSave);
-    });
-});
-
-// ---- Populate dropdowns ----
-async function populateSelect(url, selectId, selectedId, noneLabel) {
-    try {
-        const r = await fetch(url);
-        if (!r.ok) { console.error('populateSelect error:', url, r.status); return; }
-        const data = await r.json();
-        const sel = document.getElementById(selectId);
-        if (!sel) return;
-        const items = Array.isArray(data) ? data : [];
-        if (!Array.isArray(data)) console.warn('populateSelect', selectId, ':', data);
-        let html = '<option value="">' + (noneLabel || '— None / Disabled —') + '</option>';
         items.forEach(item => {
-            const selected = (String(item.id) === String(selectedId)) ? 'selected' : '';
-            html += '<option value="' + item.id + '" ' + selected + '>#' + escHtml(item.name) + '</option>';
+            const opt = document.createElement('option');
+            opt.value = item.id;
+            opt.textContent = item.name;
+            if (String(item.id) === String(selectedVal)) opt.selected = true;
+            sel.appendChild(opt);
         });
-        sel.innerHTML = html;
-    } catch(e) {
-        console.error('populateSelect failed:', selectId, e);
+        if (!selectedVal && prev) sel.value = prev;
     }
+
+    fillSelect('ovWelcomeChannel', channels, stats.welcome_channel_id, '— Select channel —');
+    fillSelect('ovLogChannel', channels, stats.log_channel_id, '— Select channel —');
+    fillSelect('ovAutoRole', roles, stats.auto_role_id, '— None —');
+    fillSelect('welChannel', channels, stats.welcome_channel_id, '— Select channel —');
+    fillSelect('leaveChannel', channels, stats.leave_channel_id, '— Select channel —');
+    fillSelect('msgChannel', channels, null, '— Select channel —');
+    fillSelect('embedChannel', channels, null, '— Select channel —');
+    fillSelect('panelChannel', channels, null, '— Select channel —');
+    fillSelect('tktCat', categories, stats.ticket_category_id, '— None —');
+    fillSelect('tktRole', roles, stats.ticket_support_role_id, '— None —');
 }
 
-async function populateRoleSelect(url, selectId, selectedId, noneLabel) {
-    try {
-        const r = await fetch(url);
-        if (!r.ok) { console.error('populateRoleSelect error:', url, r.status); return; }
-        const data = await r.json();
-        const sel = document.getElementById(selectId);
-        if (!sel) return;
-        const items = Array.isArray(data) ? data : [];
-        if (!Array.isArray(data)) console.warn('populateRoleSelect', selectId, ':', data);
-        let html = '<option value="">' + (noneLabel || '— None / Disabled —') + '</option>';
-        items.forEach(item => {
-            const selected = (String(item.id) === String(selectedId)) ? 'selected' : '';
-            html += '<option value="' + item.id + '" ' + selected + '>' + escHtml(item.name) + '</option>';
-        });
-        sel.innerHTML = html;
-    } catch(e) {
-        console.error('populateRoleSelect failed:', selectId, e);
-    }
-}
+// ---- Load Settings ----
 
-async function populateAllDropdowns(settings) {
-    const ch = '/api/guild/channels';
-    const ro = '/api/guild/roles';
-    const ca = '/api/guild/categories';
-
-    await populateSelect(ch, 'ovWelcomeChannel', settings?.welcome_channel_id);
-    await populateSelect(ch, 'ovLogChannel', settings?.log_channel_id);
-    await populateSelect(ch, 'welChannel', settings?.welcome_channel_id);
-    await populateSelect(ch, 'leaveChannel', settings?.leave_channel_id);
-    await populateSelect(ch, 'embedChannel', null, '— Select a channel —');
-    await populateSelect(ch, 'msgChannel', null, '— Select a channel —');
-    await populateSelect(ch, 'panelChannel', settings?.ticket_panel_channel_id, '— Select a channel —');
-
-    await populateRoleSelect(ro, 'ovAutoRole', settings?.auto_role_id);
-    await populateRoleSelect(ro, 'tktRole', null);
-    await populateSelect(ca, 'tktCat', null);
-
-    if (settings?.ticket_category_id) {
-        const el = document.getElementById('tktCat');
-        if (el) el.value = settings.ticket_category_id;
-    }
-    if (settings?.ticket_support_role_id) {
-        const el = document.getElementById('tktRole');
-        if (el) el.value = settings.ticket_support_role_id;
-    }
-}
-
-// ---- Load settings into forms ----
 async function loadSettings() {
-    let d;
     try {
         const r = await fetch('/api/stats');
-        if (!r.ok) { console.error('Stats API returned', r.status); return; }
-        d = await r.json();
-        await populateAllDropdowns(d);
+        const s = await r.json();
+        document.getElementById('statStatus').textContent = s.status;
+        document.getElementById('statMembers').textContent = s.member_count;
+        document.getElementById('statGuild').textContent = s.guild_name;
+        document.getElementById('statStatus').textContent = s.status;
+
+        await populateAllDropdowns(s);
+
+        document.getElementById('abw').checked = s.anti_bad_words;
+        document.getElementById('al').checked = s.anti_links;
+        document.getElementById('as').checked = s.anti_spam;
+        document.getElementById('amPenalty').value = s.automod_penalty || 'mute';
+        document.getElementById('amBypass').value = s.automod_bypass_roles || '';
+        document.getElementById('welEnabled').checked = s.welcome_enabled;
+        document.getElementById('leaveEnabled').checked = s.leave_enabled;
+        document.getElementById('tktEnabled').checked = s.ticket_enabled;
+
+        const welR = await fetch('/api/welcomer');
+        const wel = await welR.json();
+        document.getElementById('welMessage').value = wel.welcome_message || '';
+        document.getElementById('leaveMessage').value = wel.leave_message || '';
+        document.getElementById('welAvatarX').value = wel.avatar_x || 80;
+        document.getElementById('welAvatarY').value = wel.avatar_y || 86;
+        document.getElementById('welAvatarSize').value = wel.avatar_size || 128;
+        updateCanvasPosition();
+
+        const tktR = await fetch('/api/tickets/settings');
+        const tkt = await tktR.json();
+        document.getElementById('tktTitle').value = tkt.ticket_panel_title || '';
+        document.getElementById('tktDesc').value = tkt.ticket_panel_desc || '';
+        document.getElementById('tktBtn').value = tkt.ticket_button_text || '';
+        document.getElementById('tktColor').value = tkt.ticket_embed_color || '#5865F2';
     } catch(e) {
-        console.error('loadSettings failed:', e);
-        return;
+        console.error('loadSettings error:', e);
     }
-
-    // Welcomer
-    const wr = await fetch('/api/welcomer');
-    const w = await wr.json();
-    document.getElementById('welEnabled').checked = w.welcome_enabled;
-    document.getElementById('welMessage').value = w.welcome_message || '';
-    document.getElementById('leaveEnabled').checked = w.leave_enabled;
-    document.getElementById('leaveMessage').value = w.leave_message || '';
-    document.getElementById('welAvatarX').value = w.avatar_x ?? 80;
-    document.getElementById('welAvatarY').value = w.avatar_y ?? 86;
-    document.getElementById('welAvatarSize').value = w.avatar_size ?? 128;
-    setTimeout(syncCanvas, 500);
-
-    // AutoMod
-    document.getElementById('abw').checked = d.anti_bad_words;
-    document.getElementById('al').checked = d.anti_links;
-    document.getElementById('as').checked = d.anti_spam;
-    document.getElementById('amPenalty').value = d.automod_penalty || 'mute';
-    document.getElementById('amBypass').value = d.automod_bypass_roles || '';
-
-    // Tickets
-    const tr = await fetch('/api/tickets/settings');
-    const t = await tr.json();
-    document.getElementById('tktEnabled').checked = t.ticket_enabled;
-    document.getElementById('tktTitle').value = t.ticket_panel_title || '';
-    document.getElementById('tktDesc').value = t.ticket_panel_desc || '';
-    document.getElementById('tktBtn').value = t.ticket_button_text || 'Open Ticket';
-    document.getElementById('tktColor').value = t.ticket_embed_color || '#5865F2';
-
-    // Overview selects
-    document.getElementById('ovWelcomeChannel').value = d.welcome_channel_id || '';
-    document.getElementById('ovLogChannel').value = d.log_channel_id || '';
-    document.getElementById('ovAutoRole').value = d.auto_role_id || '';
 }
 
-// ---- Load Auto-Responder list ----
+// ---- Auto-Responder ----
+
 async function loadAutoResponder() {
-    const r = await fetch('/api/autoresponder');
-    const items = await r.json();
-    const body = document.getElementById('arBody');
-    body.innerHTML = items.map(i => `
-        <tr>
-            <td><code>${escHtml(i.trigger)}</code></td>
-            <td>${escHtml(i.response)}</td>
-            <td><button class="btn btn-sm btn-danger" onclick="deleteAutoResponder(${i.id})">Delete</button></td>
-        </tr>
-    `).join('');
+    try {
+        const r = await fetch('/api/autoresponder');
+        const data = await r.json();
+        const body = document.getElementById('arBody');
+        body.innerHTML = data.map(item =>
+            `<tr><td>${escHtml(item.trigger)}</td><td>${escHtml(item.response)}</td><td><button class="btn btn-danger btn-sm" onclick="deleteAutoResponder(${item.id})">Delete</button></td></tr>`
+        ).join('');
+    } catch(e) {}
 }
 
 async function addAutoResponder() {
     const trigger = document.getElementById('arTrigger').value.trim();
     const response = document.getElementById('arResponse').value.trim();
-    if (!trigger || !response) { showToast('Please enter trigger and response', 'error'); return; }
+    if (!trigger || !response) { showToast('Fill in both fields', 'error'); return; }
     const form = new FormData();
     form.append('trigger', trigger);
     form.append('response', response);
-    const r = await fetch('/api/autoresponder/add', { method: 'POST', body: form });
-    if (r.ok) {
-        showToast('✅ Trigger added!', 'success');
-        document.getElementById('arTrigger').value = '';
-        document.getElementById('arResponse').value = '';
-        loadAutoResponder();
-    } else showToast('❌ Failed to add trigger', 'error');
+    await fetch('/api/autoresponder/add', { method: 'POST', body: form });
+    document.getElementById('arTrigger').value = '';
+    document.getElementById('arResponse').value = '';
+    loadAutoResponder();
 }
 
 async function deleteAutoResponder(id) {
-    const r = await fetch('/api/autoresponder/delete/' + id, { method: 'POST' });
-    if (r.ok) { showToast('Deleted', 'success'); loadAutoResponder(); }
-    else showToast('Failed to delete', 'error');
+    await fetch('/api/autoresponder/delete/' + id, { method: 'POST' });
+    loadAutoResponder();
 }
 
-// ---- Load active tickets ----
+// ---- Tickets ----
+
 async function loadTickets() {
-    const r = await fetch('/api/tickets/active');
-    const tickets = await r.json();
-    const body = document.getElementById('ticketBody');
-    body.innerHTML = tickets.map(t => `
-        <tr>
-            <td>#${escHtml(t.channel_name)}</td>
-            <td>${escHtml(t.user_name)}</td>
-            <td>${new Date(t.opened_at).toLocaleString()}</td>
-            <td><button class="btn btn-sm btn-danger" onclick="closeTicket(${t.channel_id})">Close</button></td>
-        </tr>
-    `).join('');
-}
-
-async function closeTicket(channelId) {
-    await fetch('/api/tickets/close/' + channelId, { method: 'POST' });
-    loadTickets();
-    showToast('Ticket closed', 'success');
+    try {
+        const r = await fetch('/api/tickets/active');
+        const data = await r.json();
+        const body = document.getElementById('ticketBody');
+        body.innerHTML = data.map(t =>
+            `<tr><td>#${escHtml(t.channel_name)}</td><td>${escHtml(t.user_name)}</td><td>${new Date(t.opened_at).toLocaleString()}</td><td><button class="btn btn-danger btn-sm" onclick="closeTicket(${t.channel_id})">Close</button></td></tr>`
+        ).join('');
+    } catch(e) {}
 }
 
 async function sendTicketPanel() {
-    const sel = document.getElementById('panelChannel');
-    if (!sel.value) {
-        showToast('Please select a channel first', 'error');
-        return;
-    }
+    const ch = document.getElementById('panelChannel').value;
+    if (!ch) { showToast('Select a channel', 'error'); return; }
     const form = new FormData();
-    form.append('channel_id', sel.value);
+    form.append('channel_id', ch);
     const r = await fetch('/api/tickets/send-panel', { method: 'POST', body: form });
     if (r.ok) showToast('✅ Ticket panel sent!', 'success');
     else showToast('❌ Failed to send panel', 'error');
 }
 
-// ---- Load logs ----
+async function closeTicket(channelId) {
+    const r = await fetch('/api/tickets/close/' + channelId, { method: 'POST' });
+    if (r.ok) { showToast('✅ Ticket closed', 'success'); loadTickets(); }
+    else showToast('❌ Failed to close ticket', 'error');
+}
+
+// ---- Logs ----
+
 async function loadLogs() {
-    const body = document.getElementById('logsBody');
     try {
-        const lr = await fetch('/api/logs/recent');
-        const entries = await lr.json();
-        body.innerHTML = entries.map(e => `
-            <tr>
-                <td>${new Date(e.timestamp).toLocaleString()}</td>
-                <td>${escHtml(e.event_type)}</td>
-                <td>${escHtml(e.description || '')}</td>
-            </tr>
-        `).join('');
-    } catch(e) {
-        body.innerHTML = '<tr><td colspan="3">No log entries yet.</td></tr>';
-    }
+        const r = await fetch('/api/logs/recent');
+        const data = await r.json();
+        const body = document.getElementById('logsBody');
+        body.innerHTML = data.map(e =>
+            `<tr><td>${new Date(e.timestamp).toLocaleString()}</td><td>${escHtml(e.event_type)}</td><td>${escHtml(e.description)}</td></tr>`
+        ).join('');
+    } catch(e) {}
 }
 
-// ---- Canvas Editor ----
-let _dragType = null;
-let _dragStartX = 0, _dragStartY = 0;
-let _startAX = 0, _startAY = 0, _startSize = 0;
-
-function getCanvasScale() {
-    const img = document.getElementById('canvasBg');
-    return img.naturalWidth ? img.clientWidth / 1296 : 1;
-}
-
-function syncCanvas() {
-    const scale = getCanvasScale();
-    const ax = parseInt(document.getElementById('welAvatarX').value) || 80;
-    const ay = parseInt(document.getElementById('welAvatarY').value) || 86;
-    const sz = parseInt(document.getElementById('welAvatarSize').value) || 128;
-    const av = document.getElementById('canvasAvatar');
-    const inner = document.getElementById('canvasAvatarInner');
-    av.style.left = (ax * scale) + 'px';
-    av.style.top = (ay * scale) + 'px';
-    av.style.width = (sz * scale) + 'px';
-    av.style.height = (sz * scale) + 'px';
-    const fontSize = Math.max(12, sz * scale * 0.35);
-    inner.style.fontSize = fontSize + 'px';
-    document.getElementById('dispX').textContent = ax;
-    document.getElementById('dispY').textContent = ay;
-    document.getElementById('dispSize').textContent = sz;
-}
-
-function onCanvasMouseDown(e) {
-    if (e.target.id === 'resizeHandle') _dragType = 'resize';
-    else _dragType = 'drag';
-    _dragStartX = e.clientX;
-    _dragStartY = e.clientY;
-    _startAX = parseInt(document.getElementById('welAvatarX').value) || 80;
-    _startAY = parseInt(document.getElementById('welAvatarY').value) || 86;
-    _startSize = parseInt(document.getElementById('welAvatarSize').value) || 128;
-    document.addEventListener('mousemove', onCanvasMouseMove);
-    document.addEventListener('mouseup', onCanvasMouseUp);
-    e.preventDefault();
-}
-
-function onCanvasMouseMove(e) {
-    const scale = getCanvasScale();
-    const dx = (e.clientX - _dragStartX) / scale;
-    const dy = (e.clientY - _dragStartY) / scale;
-    if (_dragType === 'drag') {
-        document.getElementById('welAvatarX').value = Math.round(clamp(_startAX + dx, 0, 1296));
-        document.getElementById('welAvatarY').value = Math.round(clamp(_startAY + dy, 0, 864));
-    } else if (_dragType === 'resize') {
-        document.getElementById('welAvatarSize').value = Math.round(clamp(_startSize + dx, 32, 256));
-    }
-    syncCanvas();
-    // Trigger auto-save debounce on mouse up (so we don't spam saves during drag)
-}
-
-function onCanvasMouseUp() {
-    _dragType = null;
-    document.removeEventListener('mousemove', onCanvasMouseMove);
-    document.removeEventListener('mouseup', onCanvasMouseUp);
-    // Fire change on hidden inputs to trigger auto-save
-    ['welAvatarX', 'welAvatarY', 'welAvatarSize'].forEach(id => {
-        document.getElementById(id).dispatchEvent(new Event('change'));
-    });
-}
-
-function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('canvasAvatar').addEventListener('mousedown', onCanvasMouseDown);
-});
-
-// ---- Embed Sender ----
-function updatePreview() {
-    const title = document.getElementById('embedTitle').value || 'Title';
-    const desc = document.getElementById('embedDesc').value || 'Description';
-    const color = document.getElementById('embedColor').value || '#5865F2';
-    const thumb = document.getElementById('embedThumb').value;
-    const footer = document.getElementById('embedFooter').value || '';
-    document.getElementById('previewTitle').textContent = title;
-    document.getElementById('previewDesc').textContent = desc;
-    document.getElementById('previewBar').style.background = color;
-    document.getElementById('previewFooter').textContent = footer;
-    document.getElementById('previewFooter').style.display = footer ? '' : 'none';
-    const thumbImg = document.getElementById('previewThumb');
-    if (thumb) { thumbImg.src = thumb; thumbImg.style.display = ''; }
-    else { thumbImg.style.display = 'none'; }
-}
-
-document.getElementById('embedTitle').addEventListener('input', updatePreview);
-document.getElementById('embedDesc').addEventListener('input', updatePreview);
-document.getElementById('embedColor').addEventListener('input', updatePreview);
-document.getElementById('embedThumb').addEventListener('input', updatePreview);
-document.getElementById('embedFooter').addEventListener('input', updatePreview);
+// ---- Sender ----
 
 async function sendEmbed() {
-    const sel = document.getElementById('embedChannel');
-    if (!sel.value) { showToast('Please select a channel', 'error'); return; }
     const form = new FormData();
-    form.append('channel_id', sel.value);
+    form.append('channel_id', document.getElementById('embedChannel').value);
     form.append('title', document.getElementById('embedTitle').value);
     form.append('description', document.getElementById('embedDesc').value);
     form.append('color', document.getElementById('embedColor').value);
@@ -790,8 +646,215 @@ async function sendMessage() {
     form.append('content', content);
     if (fileInput.files.length) form.append('file', fileInput.files[0]);
     const r = await fetch('/api/message/send', { method: 'POST', body: form });
-    if (r.ok) { showToast('✅ Message sent!', 'success'); fileInput.value = ''; }
+    if (r.ok) { showToast('✅ Message sent!', 'success'); fileInput.value = ''; document.getElementById('msgContent').value = ''; }
     else showToast('❌ Failed to send message', 'error');
+}
+
+// ---- Roles ----
+async function loadRoles() {
+    const r = await fetch('/api/guild/roles');
+    const roles = await r.json();
+    const statsR = await fetch('/api/stats');
+    const stats = await statsR.json();
+
+    // Auto role dropdown
+    await populateRoleSelect('/api/guild/roles', 'roleAutoRole', stats.auto_role_id);
+
+    // Self-role checkboxes
+    const container = document.getElementById('rolePanelRoles');
+    container.innerHTML = roles.map(role =>
+        `<label style="display:flex;align-items:center;gap:6px;background:var(--bg-tertiary);padding:6px 12px;border-radius:6px;border:1px solid var(--border);cursor:pointer;font-size:13px;color:var(--text-primary)">
+            <input type="checkbox" value="${role.id}" style="accent-color:var(--accent)"> ${escHtml(role.name)}
+        </label>`
+    ).join('');
+
+    // Channel for panel
+    await populateSelect('/api/guild/channels', 'rolePanelChannel', null, '— Select channel —');
+}
+
+async function saveAutoRole() {
+    const roleId = document.getElementById('roleAutoRole').value;
+    const form = new FormData();
+    form.append('auto_role', roleId || '');
+    const r = await fetch('/update', { method: 'POST', body: form });
+    if (r.ok) showToast('✅ Auto role saved!', 'success');
+    else showToast('❌ Failed to save', 'error');
+}
+
+async function sendSelfRolePanel() {
+    const channelSel = document.getElementById('rolePanelChannel');
+    if (!channelSel.value) { showToast('Select a channel', 'error'); return; }
+    const checked = document.querySelectorAll('#rolePanelRoles input[type="checkbox"]:checked');
+    if (checked.length === 0) { showToast('Select at least one role', 'error'); return; }
+    const form = new FormData();
+    form.append('channel_id', channelSel.value);
+    checked.forEach(cb => form.append('role_ids', cb.value));
+    const r = await fetch('/api/roles/send-panel', { method: 'POST', body: form });
+    if (r.ok) showToast('✅ Self role panel sent!', 'success');
+    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+}
+
+// ---- Canvas (Avatar Position) ----
+
+function getCanvasScale() {
+    const wrapper = document.getElementById('canvasWrapper');
+    return wrapper ? wrapper.clientWidth / 1296 : 1;
+}
+
+function updateCanvasPosition() {
+    const x = parseInt(document.getElementById('welAvatarX').value) || 80;
+    const y = parseInt(document.getElementById('welAvatarY').value) || 86;
+    const size = parseInt(document.getElementById('welAvatarSize').value) || 128;
+    const scale = getCanvasScale();
+    const avatar = document.getElementById('canvasAvatar');
+    const handle = document.getElementById('resizeHandle');
+    avatar.style.left = (x * scale - size * scale / 2) + 'px';
+    avatar.style.top = (y * scale - size * scale / 2) + 'px';
+    avatar.style.width = (size * scale) + 'px';
+    avatar.style.height = (size * scale) + 'px';
+    document.getElementById('dispX').textContent = x;
+    document.getElementById('dispY').textContent = y;
+    document.getElementById('dispSize').textContent = size;
+}
+
+(function() {
+    const wrapper = document.getElementById('canvasWrapper');
+    const avatar = document.getElementById('canvasAvatar');
+    const handle = document.getElementById('resizeHandle');
+    if (!wrapper || !avatar || !handle) return;
+
+    let dragging = false, resizing = false, startX, startY, startAx, startAy, startW;
+
+    avatar.addEventListener('mousedown', function(e) {
+        if (e.target === handle) return;
+        dragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startAx = parseInt(document.getElementById('welAvatarX').value);
+        startAy = parseInt(document.getElementById('welAvatarY').value);
+        e.preventDefault();
+    });
+
+    handle.addEventListener('mousedown', function(e) {
+        resizing = true;
+        startX = e.clientX;
+        startW = parseInt(document.getElementById('welAvatarSize').value);
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        const scale = getCanvasScale();
+        if (dragging) {
+            const dx = (e.clientX - startX) / scale;
+            const dy = (e.clientY - startY) / scale;
+            const newX = Math.round(Math.max(0, Math.min(1296, startAx + dx)));
+            const newY = Math.round(Math.max(0, Math.min(864, startAy + dy)));
+            document.getElementById('welAvatarX').value = newX;
+            document.getElementById('welAvatarY').value = newY;
+            updateCanvasPosition();
+        }
+        if (resizing) {
+            const dx = (e.clientX - startX) / scale;
+            const newSize = Math.round(Math.max(32, Math.min(256, startW + dx)));
+            document.getElementById('welAvatarSize').value = newSize;
+            updateCanvasPosition();
+        }
+    });
+
+    document.addEventListener('mouseup', function() {
+        if (dragging || resizing) {
+            dragging = false;
+            resizing = false;
+            triggerAutoSave();
+        }
+    });
+})();
+
+function triggerAutoSave() {
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(saveAll, 1500);
+}
+
+// ---- Auto-save on setting changes ----
+document.querySelectorAll('[data-setting]').forEach(el => {
+    el.addEventListener('change', triggerAutoSave);
+    el.addEventListener('input', triggerAutoSave);
+});
+
+// ---- Embed Preview ----
+function updatePreview() {
+    const title = document.getElementById('embedTitle');
+    const desc = document.getElementById('embedDesc');
+    const color = document.getElementById('embedColor');
+    const footer = document.getElementById('embedFooter');
+    const thumb = document.getElementById('embedThumb');
+    if (title) document.getElementById('previewTitle').textContent = title.value || 'Title';
+    if (desc) document.getElementById('previewDesc').textContent = desc.value || 'Description';
+    if (color) document.getElementById('previewBar').style.background = color.value || '#5865F2';
+    if (footer) document.getElementById('previewFooter').textContent = footer.value || 'Footer';
+    if (thumb && thumb.value) {
+        const img = document.getElementById('previewThumb');
+        img.src = thumb.value;
+        img.style.display = 'block';
+    }
+}
+['embedTitle','embedDesc','embedColor','embedFooter','embedThumb'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updatePreview);
+});
+
+// ---- Save All ----
+async function saveAll() {
+    showSaving();
+
+    const welForm = new FormData();
+    welForm.append('welcome_enabled', getSettingVal('welEnabled') ? 'on' : '');
+    welForm.append('welcome_channel_id', getSettingVal('welChannel') || '');
+    welForm.append('welcome_message', getSettingVal('welMessage') || '');
+    welForm.append('leave_enabled', getSettingVal('leaveEnabled') ? 'on' : '');
+    welForm.append('leave_channel_id', getSettingVal('leaveChannel') || '');
+    welForm.append('leave_message', getSettingVal('leaveMessage') || '');
+    welForm.append('avatar_x', getSettingVal('welAvatarX') || '');
+    welForm.append('avatar_y', getSettingVal('welAvatarY') || '');
+    welForm.append('avatar_size', getSettingVal('welAvatarSize') || '');
+
+    const amForm = new FormData();
+    amForm.append('anti_bad_words', getSettingVal('abw') ? 'on' : '');
+    amForm.append('anti_links', getSettingVal('al') ? 'on' : '');
+    amForm.append('anti_spam', getSettingVal('as') ? 'on' : '');
+    amForm.append('automod_penalty', getSettingVal('amPenalty') || 'mute');
+    amForm.append('automod_bypass_roles', getSettingVal('amBypass') || '');
+
+    const tktForm = new FormData();
+    tktForm.append('ticket_enabled', getSettingVal('tktEnabled') ? 'on' : '');
+    tktForm.append('ticket_panel_title', getSettingVal('tktTitle') || '');
+    tktForm.append('ticket_panel_desc', getSettingVal('tktDesc') || '');
+    tktForm.append('ticket_button_text', getSettingVal('tktBtn') || '');
+    tktForm.append('ticket_embed_color', getSettingVal('tktColor') || '#5865F2');
+    tktForm.append('ticket_category_id', getSettingVal('tktCat') || '');
+    tktForm.append('ticket_support_role_id', getSettingVal('tktRole') || '');
+
+    const ovForm = new FormData();
+    ovForm.append('welcome_channel', getSettingVal('ovWelcomeChannel') || '');
+    ovForm.append('log_channel', getSettingVal('ovLogChannel') || '');
+    ovForm.append('auto_role', getSettingVal('ovAutoRole') || '');
+
+    try {
+        const r1 = await fetch('/api/welcomer', { method: 'POST', body: welForm });
+        const r2 = await fetch('/api/automod', { method: 'POST', body: amForm });
+        const r3 = await fetch('/api/tickets/settings', { method: 'POST', body: tktForm });
+        const r4 = await fetch('/update', { method: 'POST', body: ovForm });
+        if (r1.ok && r2.ok && r3.ok && r4.ok) {
+            showSaved();
+        } else {
+            showToast('❌ Some settings failed to save', 'error');
+            showSaved();
+        }
+    } catch(e) {
+        showToast('❌ Save failed: ' + e.message, 'error');
+        showSaved();
+    }
 }
 
 // ---- Diagnostics ----
@@ -835,6 +898,7 @@ loadSettings();
 loadAutoResponder();
 loadTickets();
 loadLogs();
+loadRoles();
 setInterval(loadAutoResponder, 15000);
 setInterval(loadTickets, 15000);
 updatePreview();

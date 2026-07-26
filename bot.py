@@ -231,3 +231,39 @@ class Bot(commands.Bot):
             ]
         finally:
             sess.close()
+
+    def send_role_panel(self, channel_id: int, role_ids: list):
+        async def _send():
+            try:
+                guild = self.guild
+                if not guild:
+                    print("[RolePanel] ERROR: Guild not found")
+                    return
+                channel = discord.utils.get(guild.text_channels, id=channel_id)
+                if not channel:
+                    print(f"[RolePanel] ERROR: Channel {channel_id} not found")
+                    return
+                role_map = {}
+                for rid in role_ids:
+                    role = guild.get_role(int(rid))
+                    if role:
+                        role_map[role.name] = role
+                if not role_map:
+                    print("[RolePanel] ERROR: No valid roles found")
+                    return
+                from cogs.autorole import ReactionRoleDropdown
+                embed = discord.Embed(
+                    title="Self Roles",
+                    description="Select a role from the dropdown below.\n\n" + "\n".join(f"• {r.mention}" for r in role_map.values()),
+                    color=0x5865F2,
+                )
+                view = discord.ui.View(timeout=None)
+                view.add_item(ReactionRoleDropdown(role_map))
+                await channel.send(embed=embed, view=view)
+                print(f"[RolePanel] Sent to #{channel.name} with {len(role_map)} roles")
+            except Exception as e:
+                print(f"[RolePanel] ERROR: {e}")
+        try:
+            asyncio.run_coroutine_threadsafe(_send(), self.loop)
+        except Exception as e:
+            print(f"[RolePanel] run_coroutine_threadsafe error: {e}")
