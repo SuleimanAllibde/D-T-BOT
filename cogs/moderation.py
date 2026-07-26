@@ -60,8 +60,9 @@ class Moderation(commands.Cog):
         if amount < 1 or amount > 200:
             await interaction.response.send_message("Amount must be between 1 and 200.", ephemeral=True)
             return
+        await interaction.response.defer(ephemeral=True)
         deleted = await interaction.channel.purge(limit=amount)
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success("Cleared", f"Deleted {len(deleted)} messages."), ephemeral=True,
         )
 
