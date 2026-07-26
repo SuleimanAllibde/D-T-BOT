@@ -12,4 +12,9 @@ ADMIN_IDS = [
 ]
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
-DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", "http://localhost:5000/callback")
+
+RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "")
+if RENDER_EXTERNAL_URL:
+    DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", RENDER_EXTERNAL_URL.rstrip("/") + "/callback")
+else:
+    DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", "http://localhost:5000/callback")

@@ -1,5 +1,6 @@
 import threading
 import sys
+import os
 
 from bot import Bot
 from dashboard.app import run_dashboard, set_bot
@@ -21,9 +22,11 @@ def main():
     bot = Bot()
     set_bot(bot)
 
+    port = int(os.getenv("PORT", 5000))
+    host = "0.0.0.0"
     dash_thread = threading.Thread(target=start_dashboard, daemon=True)
     dash_thread.start()
-    print("[Dashboard] Web dashboard started on http://127.0.0.1:5000")
+    print(f"[Dashboard] Web dashboard started on http://{host}:{port}")
 
     try:
         bot.run(BOT_TOKEN)

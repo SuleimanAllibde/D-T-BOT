@@ -543,7 +543,9 @@ def update():
     return jsonify({"ok": True})
 
 
-def run_dashboard(host="127.0.0.1", port=5000, debug=False):
+def run_dashboard(host="0.0.0.0", port=None, debug=False):
+    if port is None:
+        port = int(os.getenv("PORT", 5000))
     app.run(host=host, port=port, debug=debug)
 
 
