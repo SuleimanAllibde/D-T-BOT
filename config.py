@@ -15,9 +15,12 @@ DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
 
 HOST_URL = os.getenv("HOST_URL", "").strip()
 RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "").strip()
+_uri_env = os.getenv("DISCORD_REDIRECT_URI", "").strip()
 
 _base_url = HOST_URL or RENDER_EXTERNAL_URL
-if _base_url:
-    DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", _base_url.rstrip("/") + "/callback")
+if _uri_env:
+    DISCORD_REDIRECT_URI = _uri_env
+elif _base_url:
+    DISCORD_REDIRECT_URI = _base_url.rstrip("/") + "/callback"
 else:
-    DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", "http://localhost:5000/callback")
+    DISCORD_REDIRECT_URI = "http://localhost:5000/callback"

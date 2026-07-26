@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory, send_file
 import os
+import urllib.parse
 from functools import wraps
 from dotenv import load_dotenv
 import requests
@@ -43,7 +44,7 @@ def login_required(f):
 def login():
     if session.get("logged_in"):
         return redirect(url_for("index"))
-    discord_auth_url = f"https://discord.com/api/oauth2/authorize?client_id={DISCORD_CLIENT_ID}&redirect_uri={DISCORD_REDIRECT_URI}&response_type=code&scope=identify"
+    discord_auth_url = f"https://discord.com/api/oauth2/authorize?client_id={DISCORD_CLIENT_ID}&redirect_uri={urllib.parse.quote(DISCORD_REDIRECT_URI, safe='')}&response_type=code&scope=identify"
     return render_template("login.html", discord_auth_url=discord_auth_url)
 
 
