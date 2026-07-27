@@ -137,8 +137,34 @@ def init_db():
     _migrate_legacy()
 
 
+def _migrate_postgres():
+    columns_to_add = [
+        ("guild_settings", "log_settings", "TEXT DEFAULT '{}'"),
+        ("guild_settings", "ticket_panel_channel_id", "BIGINT"),
+        ("guild_settings", "ticket_panel_message_id", "BIGINT"),
+        ("guild_settings", "avatar_x", "INTEGER DEFAULT 80"),
+        ("guild_settings", "avatar_y", "INTEGER DEFAULT 86"),
+        ("guild_settings", "avatar_size", "INTEGER DEFAULT 128"),
+        ("guild_settings", "name_x", "INTEGER DEFAULT 248"),
+        ("guild_settings", "name_y", "INTEGER DEFAULT 140"),
+    ]
+    sess = get_session()
+    try:
+        for table, col, typ in columns_to_add:
+            try:
+                sess.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {typ}")
+            except Exception:
+                pass
+        sess.commit()
+    except Exception:
+        pass
+    finally:
+        sess.close()
+
+
 def _migrate_legacy():
     if DATABASE_URL:
+        _migrate_postgres()
         return
     import sqlite3
     try:
