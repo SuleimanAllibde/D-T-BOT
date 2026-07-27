@@ -316,6 +316,33 @@ function showToast(msg, type) {
         </div>
         <button onclick="sendEmbed()" class="btn btn-primary">Send Embed</button>
     </div>
+
+    <div class="card">
+        <h2>Send a Poll</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Channel</label>
+                <select id="pollChannel" class="form-input"></select>
+            </div>
+            <div class="form-group">
+                <label>Duration (minutes)</label>
+                <input type="number" id="pollDuration" value="60" min="1" max="10080" placeholder="60">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Question</label>
+            <input type="text" id="pollQuestion" placeholder="What is your favorite color?">
+        </div>
+        <div class="form-group">
+            <label>Options (one per line, 2-9)</label>
+            <textarea id="pollOptions" rows="4" placeholder="Red&#10;Blue&#10;Green"></textarea>
+        </div>
+        <div class="toggle-row">
+            <span>Allow multiple answers</span>
+            <label class="switch"><input type="checkbox" id="pollMulti"><span class="slider"></span></label>
+        </div>
+        <button onclick="sendPoll()" class="btn btn-primary">🚀 Send Poll</button>
+    </div>
 </div>
 
 <!-- ===== TICKETS ===== -->
@@ -477,6 +504,7 @@ async function populateAllDropdowns(stats) {
     fillSelect('leaveChannel', channels, stats.leave_channel_id, '— Select channel —');
     fillSelect('msgChannel', channels, null, '— Select channel —');
     fillSelect('embedChannel', channels, null, '— Select channel —');
+    fillSelect('pollChannel', channels, null, '— Select channel —');
     fillSelect('panelChannel', channels, null, '— Select channel —');
     fillSelect('tktCat', categories, stats.ticket_category_id, '— None —');
     fillSelect('tktRole', roles, stats.ticket_support_role_id, '— None —');
@@ -628,6 +656,24 @@ async function sendMessage() {
     const r = await fetch('/api/message/send', { method: 'POST', body: form });
     if (r.ok) { showToast('✅ Message sent!', 'success'); fileInput.value = ''; document.getElementById('msgContent').value = ''; }
     else showToast('❌ Failed to send message', 'error');
+}
+
+async function sendPoll() {
+    const sel = document.getElementById('pollChannel');
+    if (!sel.value) { showToast('Select a channel', 'error'); return; }
+    const question = document.getElementById('pollQuestion').value.trim();
+    if (!question) { showToast('Enter a question', 'error'); return; }
+    const opts = document.getElementById('pollOptions').value.split('\n').map(o => o.trim()).filter(o => o);
+    if (opts.length < 2 || opts.length > 9) { showToast('Enter 2-9 options', 'error'); return; }
+    const form = new FormData();
+    form.append('channel_id', sel.value);
+    form.append('question', question);
+    form.append('options', JSON.stringify(opts));
+    form.append('duration', document.getElementById('pollDuration').value || '60');
+    form.append('allow_multiple', document.getElementById('pollMulti').checked ? 'on' : '');
+    const r = await fetch('/api/poll/send', { method: 'POST', body: form });
+    if (r.ok) showToast('✅ Poll sent!', 'success');
+    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
 }
 
 // ---- Roles ----
@@ -850,7 +896,7 @@ async function runDiagnostics() {
         const stats = await statsR.json();
         out.textContent += '\n=== /api/stats ===\n' + JSON.stringify(stats, null, 2) + '\n';
         out.textContent += '\n--- Checking DOM elements ---\n';
-        ['welChannel','leaveChannel','embedChannel','msgChannel','panelChannel','tktCat','tktRole','roleAutoRole','rolePanelChannel'].forEach(id => {
+        ['welChannel','leaveChannel','embedChannel','msgChannel','pollChannel','panelChannel','tktCat','tktRole','roleAutoRole','rolePanelChannel'].forEach(id => {
             const el = document.getElementById(id);
             out.textContent += id + ': ' + (el ? 'FOUND (' + el.options.length + ' options)' : 'MISSING') + '\n';
         });

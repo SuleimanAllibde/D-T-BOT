@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory, send_file
 import os
+import json
 import urllib.parse
 from functools import wraps
 from dotenv import load_dotenv
@@ -430,6 +431,38 @@ def api_message_send():
             file_path = os.path.join(UPLOAD_DIR, name)
             f.save(file_path)
     bot.send_message_to_channel(int(channel_id), content, file_path)
+    return jsonify({"success": True})
+
+
+@app.route("/api/poll/send", methods=["POST"])
+@login_required
+def api_poll_send():
+    bot = bot_state["bot"]
+    if not bot:
+        return jsonify({"error": "Bot offline"}), 503
+    channel_id = request.form.get("channel_id", "").strip()
+    question = request.form.get("question", "").strip()
+    options_raw = request.form.get("options", "[]")
+    duration = request.form.get("duration", "60")
+    allow_multiple = request.form.get("allow_multiple") == "on"
+
+    if not channel_id or not channel_id.isdigit():
+        return jsonify({"error": "Invalid channel ID"}), 400
+    if not question:
+        return jsonify({"error": "Question is required"}), 400
+    try:
+        options = [o.strip() for o in json.loads(options_raw) if o.strip()]
+    except Exception:
+        options = []
+    if len(options) < 2 or len(options) > 9:
+        return jsonify({"error": "Poll needs 2-9 options"}), 400
+
+    try:
+        dur = max(1, min(10080, int(duration)))
+    except ValueError:
+        dur = 60
+
+    bot.send_poll_to_channel(int(channel_id), question, options, dur, allow_multiple)
     return jsonify({"success": True})
 
 

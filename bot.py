@@ -132,6 +132,33 @@ class Bot(commands.Bot):
         except Exception as e:
             print(f"[Message] run_coroutine_threadsafe error: {e}")
 
+    def send_poll_to_channel(self, channel_id: int, question: str, options: list, duration: int = 60, allow_multiple: bool = False):
+        async def _send():
+            try:
+                channel = self.get_channel(channel_id)
+                if not channel:
+                    print(f"[Poll] ERROR: Channel {channel_id} not found")
+                    return
+
+                reactions = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣"]
+                opts_text = "\n".join(f"{reactions[i]} {opt}" for i, opt in enumerate(options))
+
+                embed = discord.Embed(title=question, description=opts_text, color=0x5865F2)
+                multi_text = "React with one or more options below." if allow_multiple else "React with one option below."
+                embed.set_footer(text=f"Poll • Ends in {duration} minutes • {multi_text}")
+
+                msg = await channel.send(embed=embed)
+                for i in range(len(options)):
+                    await msg.add_reaction(reactions[i])
+
+                print(f"[Poll] Sent to #{channel.name} with {len(options)} options")
+            except Exception as e:
+                print(f"[Poll] ERROR: {e}")
+        try:
+            asyncio.run_coroutine_threadsafe(_send(), self.loop)
+        except Exception as e:
+            print(f"[Poll] run_coroutine_threadsafe error: {e}")
+
     def close_ticket_channel(self, channel_id: int):
         async def _close():
             try:
