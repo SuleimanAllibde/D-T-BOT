@@ -207,6 +207,8 @@ body {
 .stat-icon-status { background: linear-gradient(135deg, #22c55e22, #22c55e11); color: var(--green); }
 .stat-icon-members { background: linear-gradient(135deg, #5865f222, #5865f211); color: var(--accent); }
 .stat-icon-guild { background: linear-gradient(135deg, #eab30822, #eab30811); color: var(--yellow); }
+.stat-icon-ping { background: linear-gradient(135deg, #06b6d422, #06b6d411); color: #06b6d4; }
+.stat-icon-new { background: linear-gradient(135deg, #a855f722, #a855f711); color: #a855f7; }
 .stat-label {
     display: block;
     font-size: 12px;

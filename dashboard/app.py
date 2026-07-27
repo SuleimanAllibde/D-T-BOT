@@ -215,15 +215,26 @@ def api_debug_db():
 @app.route("/api/stats")
 @login_required
 def api_stats():
-    guild = bot_state["bot"].guild if bot_state["bot"] else None
+    bot = bot_state["bot"]
+    guild = bot.guild if bot else None
     if guild:
         bot_state["member_count"] = guild.member_count or 0
         bot_state["guild_name"] = guild.name
     s = _settings()
+
+    ping_ms = round(bot.latency * 1000) if bot else 0
+    new_members = 0
+    if guild:
+        from datetime import datetime, timedelta
+        cutoff = datetime.utcnow() - timedelta(hours=24)
+        new_members = sum(1 for m in guild.members if m.joined_at and m.joined_at.replace(tzinfo=None) > cutoff)
+
     return jsonify({
         "status": bot_state["status"],
         "member_count": bot_state["member_count"],
         "guild_name": bot_state["guild_name"],
+        "ping_ms": ping_ms,
+        "new_members_24h": new_members,
         "welcome_enabled": s.welcome_enabled,
         "welcome_channel_id": str(s.welcome_channel_id) if s.welcome_channel_id else None,
         "leave_enabled": s.leave_enabled,

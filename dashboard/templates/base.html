@@ -84,6 +84,10 @@
             if (mc) mc.textContent = data.member_count;
             const gn = document.getElementById('statGuild');
             if (gn) gn.textContent = data.guild_name;
+            const pg = document.getElementById('statPing');
+            if (pg) pg.textContent = data.ping_ms + 'ms';
+            const nm = document.getElementById('statNewMembers');
+            if (nm) nm.textContent = data.new_members_24h;
         } catch(e) {}
     }
 
