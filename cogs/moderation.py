@@ -6,11 +6,39 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-from database import get_session, GuildSettings
-from utils.embeds import success, warning, error
+from database import get_session, GuildSettings, Warning
+from utils.embeds import success, warning, error, info
 
 SPAM_LIMIT = 5
 SPAM_WINDOW = 5
+
+
+def parse_duration(text: str) -> timedelta | None:
+    match = re.match(r"^(\d+)([smhd])$", text.strip().lower())
+    if not match:
+        return None
+    val = int(match.group(1))
+    unit = match.group(2)
+    if unit == "s":
+        return timedelta(seconds=val)
+    elif unit == "m":
+        return timedelta(minutes=val)
+    elif unit == "h":
+        return timedelta(hours=val)
+    elif unit == "d":
+        return timedelta(days=val)
+    return None
+
+
+def format_duration(td: timedelta) -> str:
+    total = int(td.total_seconds())
+    if total < 60:
+        return f"{total}s"
+    if total < 3600:
+        return f"{total // 60}m"
+    if total < 86400:
+        return f"{total // 3600}h"
+    return f"{total // 86400}d"
 
 
 class Moderation(commands.Cog):
@@ -52,7 +80,7 @@ class Moderation(commands.Cog):
         pattern = r"(https?://[^\s]+)"
         return bool(re.search(pattern, content))
 
-    # ---- Slash Commands ----
+    # ---- Moderation Commands ----
 
     @app_commands.command(name="clear", description="Delete a number of messages")
     @app_commands.checks.has_permissions(manage_messages=True)
@@ -84,20 +112,138 @@ class Moderation(commands.Cog):
         await member.ban(reason=reason)
         await interaction.response.send_message(embed=success("Banned", f"{member.mention} has been banned.\nReason: {reason}"))
 
-    @app_commands.command(name="mute", description="Timeout a member")
+    @app_commands.command(name="timeout", description="Timeout a member (duration: 10m, 2h, 1d)")
     @app_commands.checks.has_permissions(moderate_members=True)
-    async def mute(self, interaction: discord.Interaction, member: discord.Member, minutes: int = 10, reason: str = "No reason"):
+    async def timeout(self, interaction: discord.Interaction, member: discord.Member, duration: str, reason: str = "No reason"):
         if not self._can_moderate(interaction.user, member):
-            await interaction.response.send_message(embed=error("Error", "Cannot mute that member."), ephemeral=True)
+            await interaction.response.send_message(embed=error("Error", "Cannot timeout that member."), ephemeral=True)
             return
-        await member.timeout(timedelta(minutes=minutes), reason=reason)
-        await interaction.response.send_message(embed=success("Muted", f"{member.mention} muted for {minutes}m.\nReason: {reason}"))
+        td = parse_duration(duration)
+        if not td or td.total_seconds() < 1:
+            await interaction.response.send_message("Invalid duration. Use format: `10s`, `10m`, `2h`, `1d`", ephemeral=True)
+            return
+        if td > timedelta(days=28):
+            await interaction.response.send_message("Maximum timeout duration is 28 days.", ephemeral=True)
+            return
+        await member.timeout(td, reason=reason)
+        await interaction.response.send_message(
+            embed=success("Timed Out", f"{member.mention} timed out for **{format_duration(td)}**.\nReason: {reason}")
+        )
 
-    @app_commands.command(name="unmute", description="Remove timeout")
+    @app_commands.command(name="untimeout", description="Remove timeout from a member")
     @app_commands.checks.has_permissions(moderate_members=True)
-    async def unmute(self, interaction: discord.Interaction, member: discord.Member):
-        await member.timeout(None, reason="Manual unmute")
-        await interaction.response.send_message(embed=success("Unmuted", f"{member.mention} unmuted."))
+    async def untimeout(self, interaction: discord.Interaction, member: discord.Member):
+        await member.timeout(None, reason="Manual untimeout")
+        await interaction.response.send_message(embed=success("Untimed Out", f"Timeout removed from {member.mention}."))
+
+    @app_commands.command(name="warn", description="Issue a warning to a member")
+    @app_commands.checks.has_permissions(moderate_members=True)
+    async def warn(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason"):
+        if not self._can_moderate(interaction.user, member):
+            await interaction.response.send_message(embed=error("Error", "Cannot warn that member."), ephemeral=True)
+            return
+        sess = get_session()
+        try:
+            w = Warning(
+                guild_id=interaction.guild_id,
+                user_id=member.id,
+                moderator_id=interaction.user.id,
+                reason=reason,
+            )
+            sess.add(w)
+            sess.commit()
+            count = sess.query(Warning).filter_by(guild_id=interaction.guild_id, user_id=member.id).count()
+        finally:
+            sess.close()
+        await interaction.response.send_message(
+            embed=success("Warned", f"{member.mention} has been warned.\nReason: {reason}\nTotal warnings: **{count}**")
+        )
+
+    @app_commands.command(name="warnings", description="View warnings for a member")
+    @app_commands.checks.has_permissions(moderate_members=True)
+    async def warnings(self, interaction: discord.Interaction, member: discord.Member):
+        sess = get_session()
+        try:
+            warns = (
+                sess.query(Warning)
+                .filter_by(guild_id=interaction.guild_id, user_id=member.id)
+                .order_by(Warning.created_at.desc())
+                .all()
+            )
+        finally:
+            sess.close()
+        if not warns:
+            await interaction.response.send_message(embed=info("Warnings", f"{member.mention} has no warnings."), ephemeral=True)
+            return
+        lines = []
+        for i, w in enumerate(warns, 1):
+            mod = interaction.guild.get_member(w.moderator_id)
+            mod_name = mod.display_name if mod else f"ID: {w.moderator_id}"
+            date = w.created_at.strftime("%Y-%m-%d %H:%M") if w.created_at else "Unknown"
+            lines.append(f"**#{i}** — {w.reason}\n> Moderator: {mod_name} | {date}")
+        embed = warning(
+            f"Warnings for {member.display_name}",
+            "\n\n".join(lines),
+            footer=f"Total: {len(warns)} warning(s)",
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="clear-warns", description="Clear all warnings for a member")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def clear_warns(self, interaction: discord.Interaction, member: discord.Member):
+        sess = get_session()
+        try:
+            count = sess.query(Warning).filter_by(guild_id=interaction.guild_id, user_id=member.id).delete()
+            sess.commit()
+        finally:
+            sess.close()
+        await interaction.response.send_message(
+            embed=success("Warnings Cleared", f"Cleared **{count}** warning(s) for {member.mention}.")
+        )
+
+    @app_commands.command(name="lock", description="Lock a channel to prevent members from writing")
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def lock(self, interaction: discord.Interaction, channel: discord.TextChannel = None):
+        channel = channel or interaction.channel
+        await channel.set_permissions(interaction.guild.default_role, send_messages=False)
+        await interaction.response.send_message(
+            embed=success("Locked", f"{channel.mention} has been locked.")
+        )
+
+    @app_commands.command(name="unlock", description="Unlock a channel")
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def unlock(self, interaction: discord.Interaction, channel: discord.TextChannel = None):
+        channel = channel or interaction.channel
+        await channel.set_permissions(interaction.guild.default_role, send_messages=None)
+        await interaction.response.send_message(
+            embed=success("Unlocked", f"{channel.mention} has been unlocked.")
+        )
+
+    @app_commands.command(name="slowmode", description="Set slowmode delay for the current channel")
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def slowmode(self, interaction: discord.Interaction, seconds: int):
+        if seconds < 0 or seconds > 21600:
+            await interaction.response.send_message("Slowmode must be between 0 and 21600 seconds (6 hours).", ephemeral=True)
+            return
+        await interaction.channel.edit(slowmode_delay=seconds)
+        if seconds == 0:
+            await interaction.response.send_message(embed=success("Slowmode", "Slowmode disabled."))
+        else:
+            await interaction.response.send_message(
+                embed=success("Slowmode", f"Slowmode set to **{seconds}** second(s).")
+            )
+
+    @app_commands.command(name="nick", description="Change a member's nickname")
+    @app_commands.checks.has_permissions(manage_nicknames=True)
+    async def nick(self, interaction: discord.Interaction, member: discord.Member, nickname: str):
+        if not self._can_moderate(interaction.user, member):
+            await interaction.response.send_message(embed=error("Error", "Cannot change that member's nickname."), ephemeral=True)
+            return
+        old_nick = member.display_name
+        await member.edit(nick=nickname)
+        await interaction.response.send_message(
+            embed=success("Nickname Changed", f"{member.mention}: **{old_nick}** → **{nickname}**")
+        )
 
     # ---- Chat Filter (on_message) ----
 

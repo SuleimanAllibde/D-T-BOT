@@ -99,6 +99,17 @@ class LogEntry(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
 
 
+class Warning(Base):
+    __tablename__ = "warnings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, nullable=False)
+    user_id = Column(BigInteger, nullable=False)
+    moderator_id = Column(BigInteger, nullable=False)
+    reason = Column(Text, default="No reason")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def init_db():
     Base.metadata.create_all(engine)
     _migrate_legacy()
