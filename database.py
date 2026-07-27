@@ -110,6 +110,27 @@ class Warning(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class SecurityLimit(Base):
+    __tablename__ = "security_limits"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, nullable=False)
+    action_type = Column(String(50), nullable=False)
+    max_count = Column(Integer, default=5)
+    time_window = Column(Integer, default=60)
+    punishment = Column(String(50), default="ban")
+    enabled = Column(Boolean, default=False)
+
+
+class SecurityWhitelist(Base):
+    __tablename__ = "security_whitelist"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, nullable=False)
+    entity_type = Column(String(10), nullable=False)
+    entity_id = Column(BigInteger, nullable=False)
+
+
 def init_db():
     Base.metadata.create_all(engine)
     _migrate_legacy()

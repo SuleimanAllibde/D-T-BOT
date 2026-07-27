@@ -32,6 +32,7 @@ class Bot(commands.Bot):
         await self.load_extension("cogs.logging")
         await self.load_extension("cogs.autoresponder")
         await self.load_extension("cogs.utility")
+        await self.load_extension("cogs.security")
 
         guild = discord.Object(id=GUILD_ID)
         self.tree.copy_global_to(guild=guild)

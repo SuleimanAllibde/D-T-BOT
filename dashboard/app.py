@@ -10,6 +10,7 @@ from config import GUILD_ID, ADMIN_IDS, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET
 from database import (
     get_session, get_settings, GuildSettings,
     AutoResponder, ActiveTicket, LogEntry,
+    SecurityLimit, SecurityWhitelist,
 )
 
 load_dotenv()
@@ -601,6 +602,137 @@ def update():
     if updates:
         _update_settings(**updates)
     return jsonify({"ok": True})
+
+
+# ---- Security ----
+
+@app.route("/api/security/limits", methods=["GET"])
+@login_required
+def api_security_limits():
+    sess = get_session()
+    try:
+        limits = sess.query(SecurityLimit).filter_by(guild_id=GUILD_ID).all()
+        return jsonify([
+            {
+                "id": l.id,
+                "action_type": l.action_type,
+                "max_count": l.max_count,
+                "time_window": l.time_window,
+                "punishment": l.punishment,
+                "enabled": l.enabled,
+            }
+            for l in limits
+        ])
+    finally:
+        sess.close()
+
+
+@app.route("/api/security/limits", methods=["POST"])
+@login_required
+def api_security_limits_add():
+    sess = get_session()
+    try:
+        l = SecurityLimit(
+            guild_id=GUILD_ID,
+            action_type=request.form.get("action_type", "ban"),
+            max_count=int(request.form.get("max_count", 5)),
+            time_window=int(request.form.get("time_window", 60)),
+            punishment=request.form.get("punishment", "ban"),
+            enabled=request.form.get("enabled") == "on",
+        )
+        sess.add(l)
+        sess.commit()
+        return jsonify({"ok": True, "id": l.id})
+    finally:
+        sess.close()
+
+
+@app.route("/api/security/limits/<int:limit_id>", methods=["POST"])
+@login_required
+def api_security_limit_update(limit_id):
+    sess = get_session()
+    try:
+        l = sess.get(SecurityLimit, limit_id)
+        if not l or l.guild_id != GUILD_ID:
+            return jsonify({"error": "Not found"}), 404
+        if "action_type" in request.form:
+            l.action_type = request.form["action_type"]
+        if "max_count" in request.form:
+            l.max_count = int(request.form["max_count"])
+        if "time_window" in request.form:
+            l.time_window = int(request.form["time_window"])
+        if "punishment" in request.form:
+            l.punishment = request.form["punishment"]
+        if "enabled" in request.form:
+            l.enabled = request.form["enabled"] == "on"
+        sess.commit()
+        return jsonify({"ok": True})
+    finally:
+        sess.close()
+
+
+@app.route("/api/security/limits/<int:limit_id>", methods=["DELETE"])
+@login_required
+def api_security_limit_delete(limit_id):
+    sess = get_session()
+    try:
+        l = sess.get(SecurityLimit, limit_id)
+        if l and l.guild_id == GUILD_ID:
+            sess.delete(l)
+            sess.commit()
+        return jsonify({"ok": True})
+    finally:
+        sess.close()
+
+
+@app.route("/api/security/whitelist", methods=["GET"])
+@login_required
+def api_security_whitelist():
+    sess = get_session()
+    try:
+        entries = sess.query(SecurityWhitelist).filter_by(guild_id=GUILD_ID).all()
+        return jsonify([
+            {"id": e.id, "entity_type": e.entity_type, "entity_id": str(e.entity_id)}
+            for e in entries
+        ])
+    finally:
+        sess.close()
+
+
+@app.route("/api/security/whitelist", methods=["POST"])
+@login_required
+def api_security_whitelist_add():
+    sess = get_session()
+    try:
+        entity_type = request.form.get("entity_type", "user")
+        entity_id = request.form.get("entity_id", "").strip()
+        if not entity_id or not entity_id.isdigit():
+            return jsonify({"error": "Invalid ID"}), 400
+        existing = sess.query(SecurityWhitelist).filter_by(
+            guild_id=GUILD_ID, entity_type=entity_type, entity_id=int(entity_id)
+        ).first()
+        if existing:
+            return jsonify({"error": "Already whitelisted"}), 400
+        e = SecurityWhitelist(guild_id=GUILD_ID, entity_type=entity_type, entity_id=int(entity_id))
+        sess.add(e)
+        sess.commit()
+        return jsonify({"ok": True, "id": e.id})
+    finally:
+        sess.close()
+
+
+@app.route("/api/security/whitelist/<int:entry_id>", methods=["DELETE"])
+@login_required
+def api_security_whitelist_delete(entry_id):
+    sess = get_session()
+    try:
+        e = sess.get(SecurityWhitelist, entry_id)
+        if e and e.guild_id == GUILD_ID:
+            sess.delete(e)
+            sess.commit()
+        return jsonify({"ok": True})
+    finally:
+        sess.close()
 
 
 def run_dashboard(host="0.0.0.0", port=None, debug=False):
