@@ -45,6 +45,7 @@ class GuildSettings(Base):
 
     # Logging
     log_channel_id = Column(BigInteger, nullable=True)
+    log_settings = Column(Text, default="{}")
 
     # AutoMod
     anti_bad_words = Column(Boolean, default=False)
@@ -153,6 +154,7 @@ def _migrate_legacy():
             ("avatar_size", "INTEGER DEFAULT 128"),
             ("name_x", "INTEGER DEFAULT 248"),
             ("name_y", "INTEGER DEFAULT 140"),
+            ("log_settings", "TEXT DEFAULT '{}'"),
         ]
         for col, typ in legacy:
             if col not in existing:

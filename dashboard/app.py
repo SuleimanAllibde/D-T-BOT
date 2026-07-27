@@ -578,6 +578,36 @@ def api_logs_recent():
         sess.close()
 
 
+@app.route("/api/logging/settings", methods=["GET"])
+@login_required
+def api_logging_settings():
+    import json as _json
+    s = _settings()
+    try:
+        ls = _json.loads(s.log_settings) if s.log_settings else {}
+    except Exception:
+        ls = {}
+    return jsonify({"log_settings": ls})
+
+
+@app.route("/api/logging/settings", methods=["POST"])
+@login_required
+def api_logging_settings_save():
+    import json as _json
+    data = request.get_json(silent=True) or {}
+    settings_dict = data.get("log_settings", {})
+    _update_settings(log_settings=_json.dumps(settings_dict))
+    return jsonify({"ok": True})
+
+
+@app.route("/api/logging/channel", methods=["POST"])
+@login_required
+def api_logging_channel():
+    val = request.form.get("log_channel", "").strip()
+    _update_settings(log_channel_id=int(val) if val else None)
+    return jsonify({"ok": True})
+
+
 # ---- Non-API settings routes (for toggles/simple updates) ----
 
 @app.route("/api/uploads/<filename>")
