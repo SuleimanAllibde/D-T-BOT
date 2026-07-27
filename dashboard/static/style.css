@@ -97,6 +97,15 @@ body {
     color: #fff;
     box-shadow: 0 2px 12px rgba(88,101,242,0.35);
 }
+.nav-category {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    padding: 18px 14px 6px;
+    opacity: .6;
+}
 .nav-icon {
     font-size: 17px;
     width: 22px;
@@ -197,18 +206,17 @@ body {
 .stat-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
 .stat-icon {
     width: 50px; height: 50px;
-    border-radius: 14px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 22px;
 }
-.stat-icon-status { background: linear-gradient(135deg, #22c55e22, #22c55e11); color: var(--green); }
-.stat-icon-members { background: linear-gradient(135deg, #5865f222, #5865f211); color: var(--accent); }
-.stat-icon-guild { background: linear-gradient(135deg, #eab30822, #eab30811); color: var(--yellow); }
-.stat-icon-ping { background: linear-gradient(135deg, #06b6d422, #06b6d411); color: #06b6d4; }
-.stat-icon-new { background: linear-gradient(135deg, #a855f722, #a855f711); color: #a855f7; }
+.stat-icon-status { color: var(--green); }
+.stat-icon-members { color: var(--accent); }
+.stat-icon-guild { color: var(--yellow); }
+.stat-icon-ping { color: #06b6d4; }
+.stat-icon-new { color: #a855f7; }
 .stat-label {
     display: block;
     font-size: 12px;
@@ -542,7 +550,7 @@ body {
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
     .sidebar { width: 64px; }
-    .sidebar-brand, .sidebar-nav .nav-item span:not(.nav-icon), .sidebar-footer span { display: none; }
+    .sidebar-brand, .sidebar-nav .nav-item span:not(.nav-icon), .sidebar-nav .nav-category, .sidebar-footer span { display: none; }
     .sidebar-nav { padding: 12px 6px; }
     .nav-item { justify-content: center; padding: 10px; }
     .sidebar-header { justify-content: center; padding: 12px; }
