@@ -138,6 +138,7 @@ def init_db():
 
 
 def _migrate_postgres():
+    from sqlalchemy import text
     columns_to_add = [
         ("guild_settings", "log_settings", "TEXT DEFAULT '{}'"),
         ("guild_settings", "ticket_panel_channel_id", "BIGINT"),
@@ -148,18 +149,13 @@ def _migrate_postgres():
         ("guild_settings", "name_x", "INTEGER DEFAULT 248"),
         ("guild_settings", "name_y", "INTEGER DEFAULT 140"),
     ]
-    sess = get_session()
-    try:
+    with engine.connect() as conn:
         for table, col, typ in columns_to_add:
             try:
-                sess.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {typ}")
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {typ}"))
             except Exception:
                 pass
-        sess.commit()
-    except Exception:
-        pass
-    finally:
-        sess.close()
+        conn.commit()
 
 
 def _migrate_legacy():
