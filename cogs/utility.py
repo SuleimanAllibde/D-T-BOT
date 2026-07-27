@@ -18,7 +18,9 @@ class Utility(commands.Cog):
         from database import get_session
         sess = get_session()
         try:
-            sess.execute("SELECT 1" if hasattr(sess, 'execute') else "")
+            if hasattr(sess, 'execute'):
+                from sqlalchemy import text
+                sess.execute(text("SELECT 1"))
         except Exception:
             pass
         finally:
@@ -32,6 +34,63 @@ class Utility(commands.Cog):
                 ("Database", f"**{db_ms}ms**", True),
             ],
         )
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="help", description="Show all available commands")
+    async def help_cmd(self, interaction: discord.Interaction):
+        embed = primary(
+            "D&T Bot Commands",
+            "Here's everything I can do:",
+        )
+        embed.set_thumbnail(url=interaction.guild.icon.url if interaction.guild and interaction.guild.icon else None)
+
+        categories = {
+            "🛡️ Moderation": [
+                "`/clear` — Bulk delete messages",
+                "`/kick` — Kick a member",
+                "`/ban` — Ban a member",
+                "`/timeout` — Timeout a member",
+                "`/untimeout` — Remove a timeout",
+                "`/warn` — Warn a member",
+                "`/warnings` — View warnings",
+                "`/clear-warns` — Clear all warnings",
+                "`/lock` — Lock a channel",
+                "`/unlock` — Unlock a channel",
+                "`/slowmode` — Set slowmode",
+                "`/nick` — Change nickname",
+            ],
+            "🤖 AutoMod": [
+                "`/automod status` — View automod settings",
+            ],
+            "🔧 Utility": [
+                "`/ping` — Show bot latency",
+                "`/help` — Show this message",
+                "`/userinfo` — Member info",
+                "`/avatar` — Member avatar",
+                "`/banner` — Member banner",
+                "`/roleinfo` — Role info",
+            ],
+            "📋 Logging": [
+                "Dashboard-only — Configure per-type log events & colors",
+            ],
+            "👋 Welcomer": [
+                "Dashboard-only — Welcome & leave cards, auto-role, reaction roles",
+            ],
+            "🎫 Tickets": [
+                "Dashboard-only — Send ticket panel",
+            ],
+            "🔒 Security": [
+                "`/security-status` — View active limits",
+            ],
+            "📨 Sender": [
+                "Dashboard-only — Send messages, embeds & polls",
+            ],
+        }
+
+        for title, cmds in categories.items():
+            embed.add_field(name=title, value="\n".join(cmds), inline=False)
+
+        embed.set_footer(text=f"{interaction.guild.name} • {interaction.guild.member_count} members" if interaction.guild else "")
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="userinfo", description="Show information about a member")
