@@ -173,6 +173,26 @@ body {
     border-radius: var(--radius-sm);
     border: 1px solid var(--border);
 }
+.overview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+}
+.overview-header h1 {
+    margin-bottom: 0;
+}
+.server-badge {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    margin-left: 14px;
+    vertical-align: middle;
+}
 
 /* ===== TABS ===== */
 .tab-panel { display: none; }
