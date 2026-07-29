@@ -1,6 +1,8 @@
 import asyncio
 import io
 import os
+import time
+from collections import deque
 
 import discord
 from discord.ext import commands
@@ -23,6 +25,7 @@ class Bot(commands.Bot):
                 name="over D&T Server",
             ),
         )
+        self._message_timestamps: deque = deque()
 
     async def setup_hook(self):
         await self.load_extension("cogs.welcome")
@@ -60,6 +63,18 @@ class Bot(commands.Bot):
         print(f"[Bot] Logged in as {self.user} (ID: {self.user.id})")
         from dashboard.app import set_bot
         set_bot(self)
+
+    async def on_message(self, message: discord.Message):
+        if message.author.bot or not message.guild or message.guild.id != GUILD_ID:
+            return
+        self._message_timestamps.append(time.time())
+
+    @property
+    def message_count_24h(self):
+        cutoff = time.time() - 86400
+        while self._message_timestamps and self._message_timestamps[0] < cutoff:
+            self._message_timestamps.popleft()
+        return len(self._message_timestamps)
 
     @property
     def guild(self):

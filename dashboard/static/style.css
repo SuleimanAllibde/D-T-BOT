@@ -217,6 +217,9 @@ body {
 .stat-icon-guild { color: var(--yellow); }
 .stat-icon-ping { color: #06b6d4; }
 .stat-icon-new { color: #a855f7; }
+.stat-icon-messages { color: #f97316; }
+.stat-icon-cpu { color: #ef4444; }
+.stat-icon-ram { color: #14b8a6; }
 .stat-label {
     display: block;
     font-size: 12px;

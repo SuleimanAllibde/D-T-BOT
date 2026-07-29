@@ -5,6 +5,7 @@ import urllib.parse
 from functools import wraps
 from dotenv import load_dotenv
 import requests
+import psutil
 
 from config import GUILD_ID, ADMIN_IDS, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI
 from database import (
@@ -235,6 +236,9 @@ def api_stats():
         "guild_name": bot_state["guild_name"],
         "ping_ms": ping_ms,
         "new_members_24h": new_members,
+        "messages_24h": bot.message_count_24h if bot else 0,
+        "ram_pct": round(psutil.virtual_memory().percent),
+        "cpu_pct": round(psutil.cpu_percent(interval=0)),
         "welcome_enabled": s.welcome_enabled,
         "welcome_channel_id": str(s.welcome_channel_id) if s.welcome_channel_id else None,
         "leave_enabled": s.leave_enabled,

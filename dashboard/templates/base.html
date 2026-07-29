@@ -95,6 +95,12 @@
             if (pg) pg.textContent = data.ping_ms + 'ms';
             const nm = document.getElementById('statNewMembers');
             if (nm) nm.textContent = data.new_members_24h;
+            const ms = document.getElementById('statMessages24h');
+            if (ms) ms.textContent = data.messages_24h;
+            const cu = document.getElementById('statCpu');
+            if (cu) cu.textContent = data.cpu_pct + '%';
+            const rm = document.getElementById('statRam');
+            if (rm) rm.textContent = data.ram_pct + '%';
         } catch(e) {}
     }
 
