@@ -85,8 +85,6 @@
             const data = await r.json();
             document.getElementById('sidebarStatus').textContent = data.status;
             document.querySelector('.bot-status').className = 'bot-status ' + (data.status === 'Online' ? 'status-online' : 'status-offline');
-            const st = document.getElementById('statStatus');
-            if (st) st.textContent = data.status;
             const mc = document.getElementById('statMembers');
             if (mc) mc.textContent = data.member_count;
             const gn = document.getElementById('statGuild');
