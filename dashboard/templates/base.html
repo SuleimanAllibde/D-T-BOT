@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     {% block head %}{% endblock %}
 </head>
@@ -48,7 +49,7 @@
                     <span>AutoMod</span>
                 </a>
                 <a href="#" class="nav-item" data-tab="moderation">
-                    <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v3m0 17v3M4.22 4.22l2.12 2.12m11.32 11.32l2.12 2.12M1 12h3m17 0h3M4.22 19.78l2.12-2.12m11.32-11.32l2.12-2.12"/></svg></span>
+                    <span class="nav-icon"><i class="fa-solid fa-gear"></i></span>
                     <span>Moderation</span>
                 </a>
                 <a href="#" class="nav-item" data-tab="security">
