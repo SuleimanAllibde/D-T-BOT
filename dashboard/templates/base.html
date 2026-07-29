@@ -74,6 +74,9 @@
         </aside>
 
         <main class="main-content">
+            <div class="content-header">
+                <span class="server-name" id="headerGuild">---</span>
+            </div>
             {% block content %}{% endblock %}
         </main>
     </div>
@@ -89,7 +92,7 @@
             if (st) st.textContent = data.status;
             const mc = document.getElementById('statMembers');
             if (mc) mc.textContent = data.member_count;
-            const gn = document.getElementById('statGuild');
+            const gn = document.getElementById('headerGuild');
             if (gn) gn.textContent = data.guild_name;
             const pg = document.getElementById('statPing');
             if (pg) pg.textContent = data.ping_ms + 'ms';

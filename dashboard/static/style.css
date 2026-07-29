@@ -157,6 +157,23 @@ body {
     -webkit-text-fill-color: transparent;
 }
 
+/* ===== CONTENT HEADER ===== */
+.content-header {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: 28px;
+}
+.server-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    padding: 8px 18px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+}
+
 /* ===== TABS ===== */
 .tab-panel { display: none; }
 .tab-panel.active { display: block; animation: fadeIn 0.25s ease; }
