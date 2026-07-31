@@ -169,6 +169,8 @@ class Bot(commands.Bot):
                 print(f"[Poll] Sent native poll to #{channel.name} with {len(options)} options, {duration}h")
 
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 print(f"[Poll] ERROR: {e}")
         try:
             asyncio.run_coroutine_threadsafe(_send(), self.loop)

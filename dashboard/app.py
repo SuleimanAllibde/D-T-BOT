@@ -469,8 +469,11 @@ def api_poll_send():
         options = [o.strip() for o in json.loads(options_raw) if o.strip()]
     except Exception:
         options = []
+    # remove duplicates, truncate to Discord limits (55 chars per answer, 300 for question)
+    options = list(dict.fromkeys(o[:55] for o in options))
+    question = question[:300]
     if len(options) < 2 or len(options) > 9:
-        return jsonify({"error": "Poll needs 2-9 options"}), 400
+        return jsonify({"error": "Poll needs 2-9 unique options"}), 400
 
     try:
         dur = max(1, min(168, int(duration)))
