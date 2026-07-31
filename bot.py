@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import io
 import os
 import time
@@ -148,7 +149,7 @@ class Bot(commands.Bot):
         except Exception as e:
             print(f"[Message] run_coroutine_threadsafe error: {e}")
 
-    def send_poll_to_channel(self, channel_id: int, question: str, options: list, duration: int = 60, allow_multiple: bool = False):
+    def send_poll_to_channel(self, channel_id: int, question: str, options: list, duration: int = 1, allow_multiple: bool = False):
         async def _send():
             try:
                 channel = self.get_channel(channel_id)
@@ -156,20 +157,16 @@ class Bot(commands.Bot):
                     print(f"[Poll] ERROR: Channel {channel_id} not found")
                     return
 
-                reactions = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣"]
-                opts_text = "\n".join(f"{reactions[i]} {opt}" for i, opt in enumerate(options))
+                poll = discord.Poll(
+                    question=question,
+                    duration=datetime.timedelta(hours=duration),
+                    multiple=allow_multiple,
+                )
+                for opt in options:
+                    poll.add_answer(text=opt)
 
-                embed = discord.Embed(title=f"📊 {question}", description=opts_text, color=0x5865F2)
-                multi_text = "React with one or more options below." if allow_multiple else "React with one option below."
-                embed.set_footer(text=f"Poll • Ends in {duration} minutes • {multi_text}")
-
-                msg = await channel.send(embed=embed)
-                for i in range(len(options)):
-                    await msg.add_reaction(reactions[i])
-
-                print(f"[Poll] Sent to #{channel.name} with {len(options)} options, closing in {duration}m")
-
-                asyncio.ensure_future(self._close_poll(msg, options, reactions, question, allow_multiple, duration))
+                msg = await channel.send(poll=poll)
+                print(f"[Poll] Sent native poll to #{channel.name} with {len(options)} options, {duration}h")
 
             except Exception as e:
                 print(f"[Poll] ERROR: {e}")
@@ -177,48 +174,6 @@ class Bot(commands.Bot):
             asyncio.run_coroutine_threadsafe(_send(), self.loop)
         except Exception as e:
             print(f"[Poll] run_coroutine_threadsafe error: {e}")
-
-    async def _close_poll(self, msg, options, reactions, question, allow_multiple, duration):
-        await asyncio.sleep(duration * 60)
-        try:
-            msg = await msg.channel.fetch_message(msg.id)
-        except Exception:
-            return
-
-        results = []
-        total = 0
-        for i, opt in enumerate(options):
-            reaction = msg.reactions[i] if i < len(msg.reactions) else None
-            count = (reaction.count - 1) if reaction else 0
-            count = max(0, count)
-            total += count
-            results.append((opt, count))
-
-        max_votes = max(r[1] for r in results) if results else 0
-        lines = []
-        for opt, count in results:
-            bar_len = int((count / max_votes) * 15) if max_votes > 0 else 0
-            bar = "█" * bar_len + "░" * (15 - bar_len)
-            pct = round((count / total) * 100) if total > 0 else 0
-            lines.append(f"**{opt}**\n`{bar}` **{count}** votes ({pct}%)")
-
-        winner_text = ""
-        if total > 0:
-            winners = [opt for opt, count in results if count == max_votes and count > 0]
-            winner_text = f"\n\n🏆 **Winner:** {', '.join(winners)}" if winners else ""
-
-        result_embed = discord.Embed(
-            title=f"📊 {question}",
-            description="\n\n".join(lines) + winner_text,
-            color=0x57F287,
-        )
-        result_embed.set_footer(text=f"Poll ended • {total} total vote(s)")
-
-        try:
-            await msg.edit(embed=result_embed)
-            await msg.clear_reactions()
-        except Exception as e:
-            print(f"[Poll] Error editing final results: {e}")
 
     def close_ticket_channel(self, channel_id: int):
         async def _close():

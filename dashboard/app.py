@@ -459,8 +459,7 @@ def api_poll_send():
     channel_id = request.form.get("channel_id", "").strip()
     question = request.form.get("question", "").strip()
     options_raw = request.form.get("options", "[]")
-    duration = request.form.get("duration", "60")
-    allow_multiple = request.form.get("allow_multiple") == "on"
+    duration = request.form.get("duration", "24")
 
     if not channel_id or not channel_id.isdigit():
         return jsonify({"error": "Invalid channel ID"}), 400
@@ -474,9 +473,9 @@ def api_poll_send():
         return jsonify({"error": "Poll needs 2-9 options"}), 400
 
     try:
-        dur = max(1, min(10080, int(duration)))
+        dur = max(1, min(168, int(duration)))
     except ValueError:
-        dur = 60
+        dur = 24
 
     bot.send_poll_to_channel(int(channel_id), question, options, dur, allow_multiple)
     return jsonify({"success": True})

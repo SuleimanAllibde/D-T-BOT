@@ -401,8 +401,8 @@ function showToast(msg, type) {
                 <select id="pollChannel" class="form-input"></select>
             </div>
             <div class="form-group">
-                <label>Duration (minutes)</label>
-                <input type="number" id="pollDuration" value="60" min="1" max="10080" placeholder="60">
+                <label>Duration (hours)</label>
+                <input type="number" id="pollDuration" value="24" min="1" max="168" placeholder="24">
             </div>
         </div>
         <div class="form-group">
@@ -822,7 +822,7 @@ async function sendPoll() {
     form.append('channel_id', sel.value);
     form.append('question', question);
     form.append('options', JSON.stringify(opts));
-    form.append('duration', document.getElementById('pollDuration').value || '60');
+    form.append('duration', document.getElementById('pollDuration').value || '24');
     form.append('allow_multiple', document.getElementById('pollMulti').checked ? 'on' : '');
     const r = await fetch('/api/poll/send', { method: 'POST', body: form });
     if (r.ok) showToast('✅ Poll sent!', 'success');
