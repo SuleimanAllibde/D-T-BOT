@@ -460,6 +460,7 @@ def api_poll_send():
     question = request.form.get("question", "").strip()
     options_raw = request.form.get("options", "[]")
     duration = request.form.get("duration", "24")
+    allow_multiple = request.form.get("allow_multiple") == "on"
 
     if not channel_id or not channel_id.isdigit():
         return jsonify({"error": "Invalid channel ID"}), 400
