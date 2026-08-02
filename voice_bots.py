@@ -50,6 +50,15 @@ class VoicePresenceBot(discord.Client):
     async def on_ready(self):
         print(f"[VoiceBot {self.bot_index}] Online as {self.user}")
         await self.sync_target()
+        self.bg_task = asyncio.ensure_future(self._keep_alive())
+
+    async def _keep_alive(self):
+        while True:
+            await asyncio.sleep(30)
+            try:
+                await self.sync_target()
+            except Exception:
+                pass
 
     async def on_voice_state_update(self, member, before, after):
         if member.id != self.user.id:
@@ -60,11 +69,13 @@ class VoicePresenceBot(discord.Client):
             await self.sync_target()
 
     async def sync_target(self):
+        import traceback
         try:
             row = _get_setting(self.bot_index)
             target = row.voice_channel_id if row.enabled and row.voice_channel_id else None
 
             if target is None:
+                self.last_error = ""
                 if self.current_vc:
                     await self.current_vc.disconnect()
                     self.current_vc = None
@@ -78,15 +89,18 @@ class VoicePresenceBot(discord.Client):
                         channel = ch
                         break
             if channel is None:
-                self.last_error = f"Channel {target} not found"
+                self.last_error = f"Channel {target} not found (is the bot in the server?)"
+                print(f"[VoiceBot {self.bot_index}] {self.last_error}")
                 return
 
             if self.current_vc and self.current_vc.channel.id == target:
+                self.last_error = ""
                 return
 
             if self.current_vc:
                 try:
                     await self.current_vc.move_to(channel)
+                    self.last_error = ""
                     print(f"[VoiceBot {self.bot_index}] Moved to {channel.name}")
                     return
                 except Exception as e:
@@ -97,11 +111,15 @@ class VoicePresenceBot(discord.Client):
                         pass
                     self.current_vc = None
 
-            self.current_vc = await channel.connect()
+            self.current_vc = await channel.connect(timeout=30)
             self.last_error = ""
             print(f"[VoiceBot {self.bot_index}] Joined #{channel.name}")
+        except discord.Forbidden as e:
+            self.last_error = "No permission to connect (check Connect permission)"
+            print(f"[VoiceBot {self.bot_index}] Forbidden: {e}")
         except Exception as e:
             self.last_error = str(e)
+            traceback.print_exc()
             print(f"[VoiceBot {self.bot_index}] sync error: {e}")
 
     def trigger_sync(self):

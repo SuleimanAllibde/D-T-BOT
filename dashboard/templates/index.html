@@ -1247,6 +1247,7 @@ async function loadVoiceBots() {
             const statusText = b.status === 'online'
                 ? (b.channel_name ? `Online • in ${escHtml(b.channel_name)}` : 'Online')
                 : 'Offline';
+            const errHtml = b.error ? `<div style="color:#ef4444;font-size:12px;margin-top:4px">⚠️ ${escHtml(b.error)}</div>` : '';
             return `
             <div class="card" style="margin-bottom:16px">
                 <div class="form-row" style="align-items:flex-end">
@@ -1267,6 +1268,7 @@ async function loadVoiceBots() {
                             <span class="bot-status" style="background:${dot}"></span>
                             <span style="color:var(--text)">${statusText}</span>
                         </div>
+                        ${errHtml}
                     </div>
                     <div class="form-group">
                         <label>Enabled</label>
