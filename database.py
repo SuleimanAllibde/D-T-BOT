@@ -132,6 +132,15 @@ class SecurityWhitelist(Base):
     entity_id = Column(BigInteger, nullable=False)
 
 
+class VoiceBotSetting(Base):
+    __tablename__ = "voice_bot_settings"
+
+    bot_index = Column(Integer, primary_key=True)
+    label = Column(String(80), default="Voice Bot")
+    voice_channel_id = Column(BigInteger, nullable=True)
+    enabled = Column(Boolean, default=False)
+
+
 def init_db():
     Base.metadata.create_all(engine)
     _migrate_legacy()
@@ -139,6 +148,19 @@ def init_db():
 
 def _migrate_postgres():
     from sqlalchemy import text
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS voice_bot_settings (
+                    bot_index INTEGER PRIMARY KEY,
+                    label VARCHAR(80) DEFAULT 'Voice Bot',
+                    voice_channel_id BIGINT,
+                    enabled BOOLEAN DEFAULT FALSE
+                )
+            """))
+            conn.commit()
+        except Exception:
+            pass
     columns_to_add = [
         ("guild_settings", "log_settings", "TEXT DEFAULT '{}'"),
         ("guild_settings", "ticket_panel_channel_id", "BIGINT"),
@@ -166,6 +188,14 @@ def _migrate_legacy():
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS voice_bot_settings (
+                bot_index INTEGER PRIMARY KEY,
+                label VARCHAR(80) DEFAULT 'Voice Bot',
+                voice_channel_id BIGINT,
+                enabled BOOLEAN DEFAULT 0
+            )
+        """)
         cursor.execute("PRAGMA table_info(guild_settings)")
         existing = {row[1] for row in cursor.fetchall()}
         legacy = [

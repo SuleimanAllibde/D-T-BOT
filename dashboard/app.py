@@ -13,6 +13,7 @@ from database import (
     AutoResponder, ActiveTicket, LogEntry,
     SecurityLimit, SecurityWhitelist,
 )
+from voice_bots import get_voice_bot_list, _save_setting, voice_bots
 
 load_dotenv()
 
@@ -163,6 +164,45 @@ def api_guild_categories():
     for c in g.categories:
         cats.append({"id": str(c.id), "name": c.name})
     return jsonify(cats)
+
+
+@app.route("/api/guild/voice_channels")
+@login_required
+def api_guild_voice_channels():
+    bot = bot_state["bot"]
+    if not bot:
+        return jsonify([])
+    g = bot.guild
+    if not g:
+        return jsonify([])
+    vcs = []
+    for ch in g.voice_channels:
+        vcs.append({"id": str(ch.id), "name": ch.name})
+    return jsonify(vcs)
+
+
+@app.route("/api/voicebots")
+@login_required
+def api_voicebots():
+    return jsonify(get_voice_bot_list())
+
+
+@app.route("/api/voicebots/update", methods=["POST"])
+@login_required
+def api_voicebots_update():
+    bot_index = request.form.get("bot_index")
+    if bot_index is None or not bot_index.isdigit():
+        return jsonify({"error": "Invalid bot index"}), 400
+    index = int(bot_index)
+    channel_id = request.form.get("voice_channel_id", "").strip()
+    enabled = request.form.get("enabled") == "on"
+    label = request.form.get("label", f"Voice Bot {index + 1}")
+    _save_setting(index, label, channel_id if channel_id else None, enabled)
+
+    vb = voice_bots.get(index)
+    if vb:
+        vb.trigger_sync()
+    return jsonify({"success": True})
 
 
 # ---- Debug ----

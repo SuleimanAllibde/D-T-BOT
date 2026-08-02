@@ -6,6 +6,7 @@ from bot import Bot
 from dashboard.app import run_dashboard, set_bot
 from config import BOT_TOKEN
 from database import init_db
+from voice_bots import start_voice_bots
 
 
 def start_dashboard():
@@ -18,6 +19,7 @@ def main():
         sys.exit(1)
 
     init_db()
+    start_voice_bots()
 
     bot = Bot()
     set_bot(bot)
