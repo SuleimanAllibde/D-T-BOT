@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 import os
 import json
 import asyncio
+import re
 import urllib.parse
 from functools import wraps
 from dotenv import load_dotenv
@@ -14,7 +15,7 @@ from database import (
     AutoResponder, ActiveTicket, LogEntry,
     SecurityLimit, SecurityWhitelist,
 )
-from voice_bots import get_voice_bot_list, _save_setting, voice_bots
+from voice_bots import get_voice_bot_list, get_voice_bot_user_id, _save_setting, voice_bots
 
 load_dotenv()
 
@@ -188,6 +189,12 @@ def api_voicebots():
     return jsonify(get_voice_bot_list())
 
 
+def _is_valid_username(name):
+    if not name or not (2 <= len(name) <= 32):
+        return False
+    return bool(re.fullmatch(r"[A-Za-z0-9_.\-]{2,32}", name))
+
+
 @app.route("/api/voicebots/update", methods=["POST"])
 @login_required
 def api_voicebots_update():
@@ -197,17 +204,32 @@ def api_voicebots_update():
     index = int(bot_index)
     channel_id = request.form.get("voice_channel_id", "").strip()
     enabled = request.form.get("enabled") == "on"
-    label = request.form.get("label", f"Voice Bot {index + 1}")
+    label = request.form.get("label", f"Voice Bot {index + 1}").strip()
     _save_setting(index, label, channel_id if channel_id else None, enabled)
 
     rename_error = ""
     vb = voice_bots.get(index)
     if vb and vb.is_ready():
+        if _is_valid_username(label):
+            try:
+                future = asyncio.run_coroutine_threadsafe(vb.rename_bot(label), vb.loop)
+                rename_error = future.result(timeout=10)
+            except Exception as e:
+                rename_error = f"Rename failed: {e}"
+    else:
+        rename_error = "Voice bot not ready"
+
+    main_bot = bot_state.get("bot")
+    vb_user_id = get_voice_bot_user_id(index)
+    if main_bot and vb_user_id:
         try:
-            future = asyncio.run_coroutine_threadsafe(vb.rename_bot(label), vb.loop)
-            rename_error = future.result(timeout=10)
+            future = main_bot.set_voice_bot_nickname(vb_user_id, label)
+            nick_error = future.result(timeout=10)
+            if nick_error:
+                rename_error = (rename_error + " | " if rename_error else "") + nick_error
         except Exception as e:
-            rename_error = f"Rename failed: {e}"
+            rename_error = (rename_error + " | " if rename_error else "") + f"Nickname failed: {e}"
+
     if vb:
         vb.trigger_sync()
     return jsonify({"success": True, "rename_error": rename_error})

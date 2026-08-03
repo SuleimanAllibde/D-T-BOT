@@ -81,6 +81,24 @@ class Bot(commands.Bot):
     def guild(self):
         return self.get_guild(GUILD_ID)
 
+    def set_voice_bot_nickname(self, user_id: int, nickname: str):
+        async def _do():
+            try:
+                guild = self.guild
+                if not guild:
+                    return "Guild not found"
+                member = guild.get_member(user_id)
+                if not member:
+                    return "Voice bot is not in the server"
+                await member.edit(nick=nickname if nickname.strip() else None)
+                return ""
+            except discord.Forbidden:
+                return "No permission to set nickname (need Manage Nicknames)"
+            except Exception as e:
+                return f"Nickname failed: {e}"
+
+        return asyncio.run_coroutine_threadsafe(_do(), self.loop)
+
     def send_embed_to_channel(
         self, channel_id: int, title: str, description: str,
         color: str = "#5865F2", thumbnail_url: str = "", footer: str = "",

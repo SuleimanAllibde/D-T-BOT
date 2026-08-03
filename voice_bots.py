@@ -156,6 +156,13 @@ def start_voice_bots():
         print(f"[VoiceBot] Started bot {i + 1}")
 
 
+def get_voice_bot_user_id(bot_index: int):
+    bot = voice_bots.get(bot_index)
+    if bot and bot.user:
+        return bot.user.id
+    return None
+
+
 def get_voice_bot_list():
     result = []
     for i in range(len(VOICE_BOT_TOKENS)):
