@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory, send_file
 import os
 import json
+import asyncio
 import urllib.parse
 from functools import wraps
 from dotenv import load_dotenv
@@ -199,10 +200,17 @@ def api_voicebots_update():
     label = request.form.get("label", f"Voice Bot {index + 1}")
     _save_setting(index, label, channel_id if channel_id else None, enabled)
 
+    rename_error = ""
     vb = voice_bots.get(index)
+    if vb and vb.is_ready():
+        try:
+            future = asyncio.run_coroutine_threadsafe(vb.rename_bot(label), vb.loop)
+            rename_error = future.result(timeout=10)
+        except Exception as e:
+            rename_error = f"Rename failed: {e}"
     if vb:
         vb.trigger_sync()
-    return jsonify({"success": True})
+    return jsonify({"success": True, "rename_error": rename_error})
 
 
 # ---- Debug ----

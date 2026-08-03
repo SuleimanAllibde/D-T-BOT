@@ -122,6 +122,24 @@ class VoicePresenceBot(discord.Client):
             traceback.print_exc()
             print(f"[VoiceBot {self.bot_index}] sync error: {e}")
 
+    async def rename_bot(self, new_name: str):
+        try:
+            if not self.user:
+                return "Bot not ready yet"
+            if self.user.name == new_name:
+                return ""
+            await self.user.edit(username=new_name)
+            self.last_error = ""
+            return ""
+        except discord.HTTPException as e:
+            msg = f"Rename failed (HTTP {e.status}): {e.text}"
+            self.last_error = msg
+            return msg
+        except Exception as e:
+            msg = f"Rename failed: {e}"
+            self.last_error = msg
+            return msg
+
     def trigger_sync(self):
         if self.loop and self.loop.is_running():
             asyncio.run_coroutine_threadsafe(self.sync_target(), self.loop)

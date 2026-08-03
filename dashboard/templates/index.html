@@ -1254,7 +1254,7 @@ async function loadVoiceBots() {
             <div class="card" style="margin-bottom:16px">
                 <div class="form-row" style="align-items:flex-end">
                     <div class="form-group" style="flex:1">
-                        <label>Bot Name</label>
+                        <label>Bot Name <small>(renames the bot on Discord)</small></label>
                         <input type="text" id="vbLabel${b.bot_index}" class="form-input" value="${escHtml(b.label)}">
                     </div>
                     <div class="form-group" style="flex:2">
@@ -1290,7 +1290,12 @@ async function saveVoiceBot(index) {
     form.append('voice_channel_id', document.getElementById('vbChannel' + index).value);
     form.append('enabled', document.getElementById('vbEnabled' + index).checked ? 'on' : '');
     const r = await fetch('/api/voicebots/update', { method: 'POST', body: form });
-    if (r.ok) { showToast('✅ Voice bot saved!', 'success'); setTimeout(loadVoiceBots, 1500); }
+    if (r.ok) {
+        const d = await r.json().catch(() => ({}));
+        if (d.rename_error) showToast('⚠️ ' + d.rename_error, 'error');
+        else showToast('✅ Voice bot saved!', 'success');
+        setTimeout(loadVoiceBots, 1500);
+    }
     else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
 }
 
