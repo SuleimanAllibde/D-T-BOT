@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 import os
 import json
 import asyncio
-import re
 import urllib.parse
 from functools import wraps
 from dotenv import load_dotenv
@@ -189,12 +188,6 @@ def api_voicebots():
     return jsonify(get_voice_bot_list())
 
 
-def _is_valid_username(name):
-    if not name or not (2 <= len(name) <= 32):
-        return False
-    return bool(re.fullmatch(r"[A-Za-z0-9_.\-]{2,32}", name))
-
-
 @app.route("/api/voicebots/update", methods=["POST"])
 @login_required
 def api_voicebots_update():
@@ -207,32 +200,37 @@ def api_voicebots_update():
     label = request.form.get("label", f"Voice Bot {index + 1}").strip()
     _save_setting(index, label, channel_id if channel_id else None, enabled)
 
-    rename_error = ""
+    errors = []
     vb = voice_bots.get(index)
+    username_ok = False
     if vb and vb.is_ready():
-        if _is_valid_username(label):
+        if label and (not vb.user or label != vb.user.name):
             try:
                 future = asyncio.run_coroutine_threadsafe(vb.rename_bot(label), vb.loop)
-                rename_error = future.result(timeout=10)
+                err = future.result(timeout=10)
+                if err:
+                    errors.append(err)
+                else:
+                    username_ok = True
             except Exception as e:
-                rename_error = f"Rename failed: {e}"
+                errors.append(f"Rename failed: {e}")
     else:
-        rename_error = "Voice bot not ready"
+        errors.append("Voice bot not ready")
 
     main_bot = bot_state.get("bot")
     vb_user_id = get_voice_bot_user_id(index)
-    if main_bot and vb_user_id:
+    if not username_ok and main_bot and vb_user_id and label:
         try:
             future = main_bot.set_voice_bot_nickname(vb_user_id, label)
-            nick_error = future.result(timeout=10)
-            if nick_error:
-                rename_error = (rename_error + " | " if rename_error else "") + nick_error
+            err = future.result(timeout=10)
+            if err:
+                errors.append(err)
         except Exception as e:
-            rename_error = (rename_error + " | " if rename_error else "") + f"Nickname failed: {e}"
+            errors.append(f"Nickname failed: {e}")
 
     if vb:
         vb.trigger_sync()
-    return jsonify({"success": True, "rename_error": rename_error})
+    return jsonify({"success": True, "rename_error": " | ".join(errors)})
 
 
 # ---- Debug ----

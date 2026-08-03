@@ -87,13 +87,18 @@ class Bot(commands.Bot):
                 guild = self.guild
                 if not guild:
                     return "Guild not found"
+                me = guild.me
+                if not me.guild_permissions.manage_nicknames:
+                    return "Main bot lacks Manage Nicknames permission"
                 member = guild.get_member(user_id)
                 if not member:
                     return "Voice bot is not in the server"
+                if me.top_role <= member.top_role:
+                    return "Main bot's role is below/equal to the voice bot's role — move the main bot's role higher"
                 await member.edit(nick=nickname if nickname.strip() else None)
                 return ""
             except discord.Forbidden:
-                return "No permission to set nickname (need Manage Nicknames)"
+                return "No permission to set nickname (need Manage Nicknames + higher role)"
             except Exception as e:
                 return f"Nickname failed: {e}"
 
