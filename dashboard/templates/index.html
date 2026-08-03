@@ -1230,6 +1230,10 @@ async function deleteWhitelist(id) {
 let _voiceChannels = [];
 
 async function loadVoiceBots() {
+    const wrap = document.getElementById('voiceBotsList');
+    if (!wrap) return;
+    const active = document.activeElement;
+    if (active && wrap.contains(active)) return;
     try {
         const chR = await fetch('/api/guild/voice_channels');
         _voiceChannels = await chR.json();
@@ -1237,8 +1241,6 @@ async function loadVoiceBots() {
     try {
         const r = await fetch('/api/voicebots');
         const bots = await r.json();
-        const wrap = document.getElementById('voiceBotsList');
-        if (!wrap) return;
         wrap.innerHTML = bots.map(b => {
             const opts = _voiceChannels.map(c =>
                 `<option value="${c.id}" ${b.voice_channel_id === c.id ? 'selected' : ''}>${escHtml(c.name)}</option>`
