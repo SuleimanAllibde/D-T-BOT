@@ -1,4 +1,8 @@
+import os
+
 import requests
+
+PISTON_API_URL = os.getenv("PISTON_URL", "https://emkc.org/api/v2/piston").rstrip("/")
 
 LANGUAGE_MAP = {
     "C++": "c++",
@@ -32,7 +36,7 @@ def _get_versions():
     if _runtimes_cache:
         return _runtimes_cache
     try:
-        r = requests.get("https://emkc.org/api/v2/piston/runtimes", timeout=6)
+        r = requests.get(f"{PISTON_API_URL}/runtimes", timeout=6)
         if r.ok:
             for rt in r.json():
                 _runtimes_cache[rt.get("language")] = rt.get("version")
@@ -66,7 +70,7 @@ def run_code(language, code, stdin, time_limit=2, memory_limit=256, max_code_siz
 
     def _execute(body):
         return requests.post(
-            "https://emkc.org/api/v2/piston/execute", json=body, timeout=45
+            f"{PISTON_API_URL}/execute", json=body, timeout=45
         )
 
     try:
