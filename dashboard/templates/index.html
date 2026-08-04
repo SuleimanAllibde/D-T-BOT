@@ -576,6 +576,318 @@ function showToast(msg, type) {
         <p style="color: var(--text-muted); font-size: 13px;">Add the bot tokens as <code>VOICE_BOT_TOKENS=token1,token2,token3</code> in your <code>.env</code> file, then restart the bot. Each token makes one bot appear here.</p>
     </div>
 </div>
+
+<!-- ===== CHALLENGES ===== -->
+<div id="tab-challenges" class="tab-panel">
+    <h1>Programming Challenges</h1>
+
+    <div class="card">
+        <h2><i class="fa-solid fa-gear"></i> General Settings</h2>
+        <div class="form-row">
+            <div class="form-group" style="flex:0.8">
+                <label>Enable / Disable</label>
+                <div class="toggle-row"><span>Programming Challenges</span>
+                    <label class="switch"><input type="checkbox" id="chEnabled"><span class="slider"></span></label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Discord Channel</label>
+                <select id="chChannel" class="form-input"><option value="">— Select channel —</option></select>
+            </div>
+            <div class="form-group">
+                <label>Embed Color</label>
+                <input type="color" id="chColor" value="#5865F2" style="width:100%;height:42px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Default Thumbnail (URL)</label>
+                <input type="text" id="chThumb" class="form-input" placeholder="https://...">
+            </div>
+            <div class="form-group">
+                <label>Default Footer</label>
+                <input type="text" id="chFooter" class="form-input" placeholder="D&T Programming Challenges">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group" style="flex:1">
+                <label>Leaderboard</label>
+                <div class="toggle-row"><span>Enable Leaderboard</span>
+                    <label class="switch"><input type="checkbox" id="chLbEnabled"><span class="slider"></span></label>
+                </div>
+            </div>
+            <div class="form-group" style="flex:1">
+                <label>XP System</label>
+                <div class="toggle-row"><span>Enable XP System</span>
+                    <label class="switch"><input type="checkbox" id="chXpEnabled"><span class="slider"></span></label>
+                </div>
+            </div>
+            <div class="form-group" style="flex:1.5; justify-content:flex-end; display:flex; align-items:flex-end;">
+                <button class="btn btn-primary" onclick="saveChallengeSettings()">💾 Save Settings</button>
+            </div>
+        </div>
+        <div class="form-row" style="align-items:flex-end">
+            <div class="form-group" style="flex:2">
+                <label>Send challenge panels to channel</label>
+                <select id="chSendChannel" class="form-input"><option value="">— Use configured channel —</option></select>
+            </div>
+            <div class="form-group" style="flex:1">
+                <button class="btn btn-success btn-block" onclick="sendChallengePanel()">📨 Send Panels</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2><i class="fa-solid fa-list"></i> Challenge List</h2>
+        <div class="form-row" style="align-items:flex-end;margin-bottom:16px">
+            <div class="form-group" style="flex:2">
+                <label>Search</label>
+                <input type="text" id="chSearch" class="form-input" placeholder="Search by title or ID..." oninput="chReloadList()">
+            </div>
+            <div class="form-group">
+                <label>Language</label>
+                <select id="chFilterLang" class="form-input" onchange="chReloadList()"><option value="">All</option></select>
+            </div>
+            <div class="form-group">
+                <label>Difficulty</label>
+                <select id="chFilterDiff" class="form-input" onchange="chReloadList()">
+                    <option value="">All</option><option>Easy</option><option>Medium</option><option>Hard</option><option>Expert</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Status</label>
+                <select id="chFilterStatus" class="form-input" onchange="chReloadList()">
+                    <option value="">All</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Sort</label>
+                <select id="chFilterSort" class="form-input" onchange="chReloadList()">
+                    <option value="">Default</option>
+                    <option value="difficulty">Difficulty ↑</option>
+                    <option value="difficulty_desc">Difficulty ↓</option>
+                    <option value="language">Language</option>
+                    <option value="newest">Newest</option>
+                </select>
+            </div>
+        </div>
+        <div style="overflow-x:auto">
+            <table class="data-table">
+                <thead><tr>
+                    <th>ID</th><th>Title</th><th>Language</th><th>Difficulty</th><th>Category</th><th>XP</th><th>Status</th><th>Created</th><th style="text-align:right">Actions</th>
+                </tr></thead>
+                <tbody id="chListBody"><tr><td colspan="9" style="text-align:center;color:var(--text-muted)">Loading...</td></tr></tbody>
+            </table>
+        </div>
+        <div id="chPagination" class="ch-pagination" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;flex-wrap:wrap">
+            <span id="chPageInfo" style="color:var(--text-muted);font-size:13px"></span>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-sm" onclick="chSetPage(-1)" id="chPrevBtn">‹ Prev</button>
+                <button class="btn btn-sm" onclick="chSetPage(1)" id="chNextBtn">Next ›</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2><i class="fa-solid fa-trophy"></i> Leaderboard</h2>
+        <div id="chLeaderboardBody" style="color:var(--text-muted);font-size:14px">Loading...</div>
+    </div>
+</div>
+
+<!-- ===== CHALLENGE EDITOR ===== -->
+<div id="tab-challenge-editor" class="tab-panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+        <h1 id="cedTitle" style="margin-bottom:0">Create Challenge</h1>
+        <div style="display:flex;gap:8px;align-items:center">
+            <span id="cedKey" class="stat-label" style="margin:0;background:var(--bg-tertiary);padding:8px 14px;border-radius:8px;border:1px solid var(--border)">—</span>
+            <button class="btn btn-success" onclick="saveChallenge()">💾 Save Challenge</button>
+            <button class="btn" onclick="cancelChallengeEdit()">✕ Cancel</button>
+        </div>
+    </div>
+
+    <div class="ced-tabs">
+        <button class="ced-tab-btn active" data-ced="general">General</button>
+        <button class="ced-tab-btn" data-ced="starter">Starter Code</button>
+        <button class="ced-tab-btn" data-ced="examples">Examples</button>
+        <button class="ced-tab-btn" data-ced="tests">Test Cases</button>
+        <button class="ced-tab-btn" data-ced="judge">Judge</button>
+        <button class="ced-tab-btn" data-ced="rewards">Rewards</button>
+        <button class="ced-tab-btn" data-ced="stats">Statistics</button>
+        <button class="ced-tab-btn" data-ced="discord">Discord Panel</button>
+    </div>
+
+    <div id="ced-general" class="ced-panel active">
+        <div class="card">
+            <h2><i class="fa-solid fa-file-code"></i> General</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="cedChTitle" class="form-input" placeholder="Two Sum">
+                </div>
+                <div class="form-group" style="flex:0.7">
+                    <label>Programming Language</label>
+                    <select id="cedChLang" class="form-input" onchange="updateDiscordPreview()"></select>
+                </div>
+                <div class="form-group" style="flex:0.7">
+                    <label>Difficulty</label>
+                    <select id="cedChDiff" class="form-input" onchange="updateDiscordPreview()">
+                        <option>Easy</option><option>Medium</option><option>Hard</option><option>Expert</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Category</label>
+                    <input type="text" id="cedChCat" class="form-input" placeholder="Algorithms">
+                </div>
+                <div class="form-group">
+                    <label>Estimated Time</label>
+                    <input type="text" id="cedChTime" class="form-input" placeholder="~30 min">
+                </div>
+                <div class="form-group" style="flex:0.6">
+                    <label>Enabled</label>
+                    <div class="toggle-row"><span>Published</span>
+                        <label class="switch"><input type="checkbox" id="cedChEnabled"><span class="slider"></span></label>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Description <small>(Markdown — renders as rich text on Discord)</small></label>
+                <div class="rt-toolbar">
+                    <button type="button" class="rt-btn" onclick="rtWrap('**')">B</button>
+                    <button type="button" class="rt-btn" onclick="rtWrap('*')"><i>I</i></button>
+                    <button type="button" class="rt-btn" onclick="rtWrap('`')"><code>code</code></button>
+                    <button type="button" class="rt-btn" onclick="rtWrap('```\n','\n```')">code block</button>
+                    <button type="button" class="rt-btn" onclick="rtWrap('[text](',' )')">link</button>
+                    <button type="button" class="rt-btn" onclick="rtBullet()">• list</button>
+                    <span style="flex:1"></span>
+                    <span style="font-size:11px;color:var(--text-muted)">Live preview below</span>
+                </div>
+                <textarea id="cedChDesc" class="form-input code-input" rows="7" placeholder="Describe the challenge..." oninput="updateDiscordPreview()"></textarea>
+                <div class="rt-preview" id="cedDescPreview"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="ced-starter" class="ced-panel">
+        <div class="card">
+            <h2><i class="fa-solid fa-code"></i> Starter Code</h2>
+            <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Provide starter code for every supported language. Code reads from <b>stdin</b> and prints to <b>stdout</b>.</p>
+            <div class="lang-tabs" id="cedStarterTabs"></div>
+            <textarea id="cedStarterCode" class="form-input code-input" rows="16" spellcheck="false" style="font-family:monospace"></textarea>
+            <div style="margin-top:10px;display:flex;gap:8px">
+                <button class="btn btn-primary btn-sm" onclick="chSaveStarter()">💾 Save This Template</button>
+                <button class="btn btn-sm" onclick="chResetStarter()">↺ Reset to Default</button>
+                <span id="cedStarterStatus" style="align-self:center;color:var(--text-muted);font-size:12px"></span>
+            </div>
+        </div>
+    </div>
+
+    <div id="ced-examples" class="ced-panel">
+        <div class="card">
+            <h2><i class="fa-solid fa-lightbulb"></i> Examples <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="addExample()">+ Add Example</button></h2>
+            <div id="cedExamplesList"></div>
+        </div>
+    </div>
+
+    <div id="ced-tests" class="ced-panel">
+        <div class="card">
+            <h2><i class="fa-solid fa-vial"></i> Hidden Test Cases <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="addTestCase()">+ Add Test Case</button></h2>
+            <div id="cedTestsList"></div>
+        </div>
+    </div>
+
+    <div id="ced-judge" class="ced-panel">
+        <div class="card">
+            <h2><i class="fa-solid fa-scale-balanced"></i> Judge Settings</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Time Limit (seconds)</label>
+                    <input type="number" id="cedTimeLimit" class="form-input" value="2" min="1" max="15">
+                </div>
+                <div class="form-group">
+                    <label>Memory Limit (MB)</label>
+                    <input type="number" id="cedMemLimit" class="form-input" value="256" min="16">
+                </div>
+                <div class="form-group">
+                    <label>Max Code Size (bytes)</label>
+                    <input type="number" id="cedMaxCode" class="form-input" value="100000">
+                </div>
+            </div>
+            <div class="toggle-row"><span>Ignore Trailing Spaces</span>
+                <label class="switch"><input type="checkbox" id="cedIgnoreTrailing"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row"><span>Ignore Empty Lines</span>
+                <label class="switch"><input type="checkbox" id="cedIgnoreEmpty"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row"><span>Case Sensitive</span>
+                <label class="switch"><input type="checkbox" id="cedCaseSensitive"><span class="slider"></span></label>
+            </div>
+        </div>
+    </div>
+
+    <div id="ced-rewards" class="ced-panel">
+        <div class="card">
+            <h2><i class="fa-solid fa-gift"></i> Rewards</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>XP Reward</label>
+                    <input type="number" id="cedXpReward" class="form-input" value="50" min="0">
+                </div>
+                <div class="form-group">
+                    <label>Coins Reward</label>
+                    <input type="number" id="cedCoinsReward" class="form-input" value="10" min="0">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Unlock Achievement <small>(name, optional)</small></label>
+                    <input type="text" id="cedAchievement" class="form-input" placeholder="e.g. First Blood">
+                </div>
+            </div>
+            <div class="toggle-row"><span>Unlock Next Challenge</span>
+                <label class="switch"><input type="checkbox" id="cedUnlockNext"><span class="slider"></span></label>
+            </div>
+        </div>
+    </div>
+
+    <div id="ced-stats" class="ced-panel">
+        <div class="card">
+            <h2><i class="fa-solid fa-chart-line"></i> Statistics</h2>
+            <div class="stats-grid" style="margin-bottom:0">
+                <div class="stat-card"><div class="stat-icon" style="color:var(--accent)"><i class="fa-solid fa-bolt"></i></div><div><span class="stat-label">Total Attempts</span><span class="stat-value" id="cedStatAttempts">0</span></div></div>
+                <div class="stat-card"><div class="stat-icon" style="color:var(--green)"><i class="fa-solid fa-circle-check"></i></div><div><span class="stat-label">Successful</span><span class="stat-value" id="cedStatSuccess">0</span></div></div>
+                <div class="stat-card"><div class="stat-icon" style="color:var(--yellow)"><i class="fa-solid fa-percent"></i></div><div><span class="stat-label">Success Rate</span><span class="stat-value" id="cedStatRate">0%</span></div></div>
+                <div class="stat-card"><div class="stat-icon" style="color:#14b8a6"><i class="fa-solid fa-stopwatch"></i></div><div><span class="stat-label">Avg Solve Time</span><span class="stat-value" id="cedStatAvg">0s</span></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="ced-discord" class="ced-panel">
+        <div class="card">
+            <h2><i class="fa-brands fa-discord"></i> Discord Panel Preview</h2>
+            <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">Live preview of the embed users will see in Discord.</p>
+            <div class="embed-preview discord-embed">
+                <div class="embed-color-bar" id="cedPreviewBar"></div>
+                <div class="embed-body">
+                    <strong id="cedPreviewTitle">Challenge Title</strong>
+                    <p id="cedPreviewDesc"></p>
+                    <div class="embed-fields" id="cedPreviewFields"></div>
+                    <div class="ch-buttons">
+                        <span class="ch-btn ch-btn-primary">▶️ Start Challenge</span>
+                        <span class="ch-btn">🏆 View Leaderboard</span>
+                    </div>
+                    <div class="embed-footer" id="cedPreviewFooter">D&T Programming Challenges</div>
+                </div>
+                <img id="cedPreviewThumb" class="embed-thumb" style="display:none" alt="">
+            </div>
+            <div style="margin-top:16px;display:flex;gap:8px;align-items:center">
+                <button class="btn btn-success" onclick="saveChallengeThenSend()">💾 Save &amp; Send Panels</button>
+                <span style="color:var(--text-muted);font-size:12px">Saves the challenge, then sends the panel to the configured channel.</span>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -1299,6 +1611,598 @@ async function saveVoiceBot(index) {
     else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
 }
 
+// ================== Programming Challenges ==================
+
+const _chLangs = ['C++', 'Python', 'JavaScript', 'Java', 'C#', 'Go', 'Rust'];
+const _chStarterTemplates = {
+    'C++': '#include <iostream>\nusing namespace std;\n\nint main() {\n    int n;\n    cin >> n;\n    cout << n << endl;\n    return 0;\n}\n',
+    'Python': 'import sys\n\ndef main():\n    data = sys.stdin.read().split()\n    # write your solution here\n    print(data)\n\nif __name__ == "__main__":\n    main()\n',
+    'JavaScript': 'const readline = require("readline");\nconst rl = readline.createInterface({ input: process.stdin });\n\nrl.on("line", (line) => {\n    // write your solution here\n    console.log(line);\n});\n',
+    'Java': 'import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // write your solution here\n        while (sc.hasNextLine()) {\n            System.out.println(sc.nextLine());\n        }\n    }\n}\n',
+    'C#': 'using System;\n\nclass Program {\n    static void Main() {\n        string line;\n        while ((line = Console.ReadLine()) != null) {\n            // write your solution here\n            Console.WriteLine(line);\n        }\n    }\n}\n',
+    'Go': 'package main\n\nimport (\n    "bufio"\n    "fmt"\n    "os"\n)\n\nfunc main() {\n    scanner := bufio.NewScanner(os.Stdin)\n    for scanner.Scan() {\n        // write your solution here\n        fmt.Println(scanner.Text())\n    }\n}\n',
+    'Rust': 'use std::io;\n\nfn main() {\n    let mut input = String::new();\n    io::stdin().read_to_string(&mut input).unwrap();\n    // write your solution here\n    print!("{}", input);\n}\n'
+};
+
+let _chSettings = null;
+let _chPage = 1;
+let _chTotalPages = 1;
+let _chLangFilter = '';
+let _chEditor = {
+    id: null,
+    key: null,
+    lang: 'Python',
+    starter: { 'C++': '', 'Python': '', 'JavaScript': '', 'Java': '', 'C#': '', 'Go': '', 'Rust': '' },
+    examples: [],
+    test_cases: [],
+    dirty: false
+};
+
+function chDiffClass(d) {
+    const m = { 'Easy': 'ch-diff-easy', 'Medium': 'ch-diff-medium', 'Hard': 'ch-diff-hard', 'Expert': 'ch-diff-expert' };
+    return m[d] || 'ch-diff-medium';
+}
+
+function chToEditor() {
+    _chSuppressReset = true;
+    document.querySelector('.nav-item[data-tab="challenge-editor"]').click();
+    chShowCedTab('general');
+}
+
+// ---- Settings ----
+
+async function loadChallengeSettings() {
+    try {
+        const r = await fetch('/api/challenges/settings');
+        const s = await r.json();
+        if (r.ok) {
+            _chSettings = s;
+            document.getElementById('chEnabled').checked = s.enabled;
+            document.getElementById('chColor').value = s.embed_color || '#5865F2';
+            document.getElementById('chThumb').value = s.thumbnail || '';
+            document.getElementById('chFooter').value = s.footer || '';
+            document.getElementById('chLbEnabled').checked = s.leaderboard_enabled;
+            document.getElementById('chXpEnabled').checked = s.xp_enabled;
+        }
+    } catch(e) {}
+    try {
+        const r = await fetch('/api/guild/channels');
+        const chs = await r.json();
+        if (Array.isArray(chs)) {
+            const opts = chs.map(c => `<option value="${c.id}">#${escHtml(c.name)}</option>`).join('');
+            const sel1 = document.getElementById('chChannel');
+            const sel2 = document.getElementById('chSendChannel');
+            if (sel1) sel1.innerHTML = '<option value="">— Select channel —</option>' + opts;
+            if (sel2) sel2.innerHTML = '<option value="">— Use configured channel —</option>' + opts;
+            if (_chSettings && _chSettings.channel_id) {
+                if (sel1) sel1.value = _chSettings.channel_id;
+            }
+        }
+    } catch(e) {}
+    populateLangFilter();
+}
+
+function populateLangFilter() {
+    const sel = document.getElementById('chFilterLang');
+    if (!sel || sel.options.length > 1) return;
+    sel.innerHTML = '<option value="">All</option>' + _chLangs.map(l => `<option>${l}</option>`).join('');
+}
+
+async function saveChallengeSettings() {
+    const form = new FormData();
+    form.append('enabled', document.getElementById('chEnabled').checked ? 'on' : '');
+    form.append('channel_id', document.getElementById('chChannel').value);
+    form.append('embed_color', document.getElementById('chColor').value);
+    form.append('thumbnail', document.getElementById('chThumb').value);
+    form.append('footer', document.getElementById('chFooter').value);
+    form.append('leaderboard_enabled', document.getElementById('chLbEnabled').checked ? 'on' : '');
+    form.append('xp_enabled', document.getElementById('chXpEnabled').checked ? 'on' : '');
+    const r = await fetch('/api/challenges/settings', { method: 'POST', body: form });
+    if (r.ok) { showToast('✅ Settings saved', 'success'); loadChallengeSettings(); }
+    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+}
+
+async function sendChallengePanel() {
+    const form = new FormData();
+    const ch = document.getElementById('chSendChannel').value || document.getElementById('chChannel').value;
+    if (ch) form.append('channel_id', ch);
+    showToast('📨 Sending panels...', '');
+    const r = await fetch('/api/challenges/send-panel', { method: 'POST', body: form });
+    if (r.ok) { const d = await r.json(); showToast('✅ Panels sent (' + d.sent + ' challenges)', 'success'); }
+    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+}
+
+// ---- List ----
+
+async function loadChallenges() {
+    const q = encodeURIComponent(document.getElementById('chSearch').value || '');
+    const lang = encodeURIComponent(document.getElementById('chFilterLang').value);
+    const diff = encodeURIComponent(document.getElementById('chFilterDiff').value);
+    const status = encodeURIComponent(document.getElementById('chFilterStatus').value);
+    const sort = encodeURIComponent(document.getElementById('chFilterSort').value);
+    const url = `/api/challenges?page=${_chPage}&search=${q}&language=${lang}&difficulty=${diff}&status=${status}&sort=${sort}`;
+    let data = { items: [], total: 0, page: 1, pages: 1 };
+    try {
+        const r = await fetch(url);
+        if (r.ok) data = await r.json();
+    } catch(e) {}
+    _chTotalPages = data.pages || 1;
+    const body = document.getElementById('chListBody');
+    if (!body) return;
+    if (!data.items.length) {
+        body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted)">No challenges found. Create your first one!</td></tr>';
+    } else {
+        body.innerHTML = data.items.map(c => `
+        <tr>
+            <td><span class="ch-key">${escHtml(c.challenge_key)}</span></td>
+            <td><strong>${escHtml(c.title)}</strong></td>
+            <td>${escHtml(c.language)}</td>
+            <td><span class="ch-diff ${chDiffClass(c.difficulty)}">${escHtml(c.difficulty)}</span></td>
+            <td>${escHtml(c.category)}</td>
+            <td>${c.xp_reward}</td>
+            <td><span class="ch-status ${c.enabled ? 'on' : 'off'}">${c.enabled ? 'Enabled' : 'Disabled'}</span></td>
+            <td>${c.created_at ? new Date(c.created_at).toLocaleDateString() : '—'}</td>
+            <td style="text-align:right;white-space:nowrap">
+                <button class="btn btn-sm" onclick="editChallenge(${c.id})">Edit</button>
+                <button class="btn btn-sm" onclick="previewChallenge(${c.id})">Discord</button>
+                <button class="btn btn-sm" onclick="duplicateChallenge(${c.id})">Copy</button>
+                <button class="btn btn-sm" onclick="toggleChallenge(${c.id}, ${c.enabled ? 'false' : 'true'})">${c.enabled ? 'Disable' : 'Enable'}</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteChallenge(${c.id})">Delete</button>
+            </td>
+        </tr>`).join('');
+    }
+    const info = document.getElementById('chPageInfo');
+    if (info) info.textContent = `Page ${data.page} of ${_chTotalPages} — ${data.total} challenges`;
+    const prev = document.getElementById('chPrevBtn');
+    const next = document.getElementById('chNextBtn');
+    if (prev) prev.disabled = _chPage <= 1;
+    if (next) next.disabled = _chPage >= _chTotalPages;
+}
+
+function chReloadList() { _chPage = 1; loadChallenges(); }
+function chSetPage(dir) {
+    _chPage = Math.max(1, Math.min(_chTotalPages, _chPage + dir));
+    loadChallenges();
+}
+
+async function editChallenge(id) {
+    const r = await fetch('/api/challenges/' + id);
+    if (!r.ok) { showToast('❌ Failed to load challenge', 'error'); return; }
+    const c = await r.json();
+    _chEditor = {
+        id: c.id,
+        key: c.challenge_key,
+        lang: _chLangs.includes(c.language) ? c.language : 'Python',
+        starter: Object.assign({}, _chStarterTemplates, c.starter_codes || {}),
+        examples: (c.examples || []).map(e => ({ input: e.input || '', output: e.output || '', explanation: e.explanation || '' })),
+        test_cases: (c.test_cases || []).map(t => ({ input: t.input || '', expected_output: t.expected_output || '', hidden: t.hidden })),
+        dirty: false
+    };
+    document.getElementById('cedTitle').textContent = 'Edit Challenge';
+    document.getElementById('cedChTitle').value = c.title || '';
+    document.getElementById('cedChLang').value = _chEditor.lang;
+    document.getElementById('cedChDiff').value = c.difficulty || 'Easy';
+    document.getElementById('cedChCat').value = c.category || '';
+    document.getElementById('cedChTime').value = c.estimated_time || '';
+    document.getElementById('cedChEnabled').checked = !!c.enabled;
+    document.getElementById('cedChDesc').value = c.description || '';
+    document.getElementById('cedTimeLimit').value = c.time_limit != null ? c.time_limit : 2;
+    document.getElementById('cedMemLimit').value = c.memory_limit != null ? c.memory_limit : 256;
+    document.getElementById('cedMaxCode').value = c.max_code_size != null ? c.max_code_size : 100000;
+    document.getElementById('cedIgnoreTrailing').checked = !!c.ignore_trailing_spaces;
+    document.getElementById('cedIgnoreEmpty').checked = !!c.ignore_empty_lines;
+    document.getElementById('cedCaseSensitive').checked = c.case_sensitive !== false;
+    document.getElementById('cedXpReward').value = c.xp_reward != null ? c.xp_reward : 50;
+    document.getElementById('cedCoinsReward').value = c.coins_reward != null ? c.coins_reward : 10;
+    document.getElementById('cedAchievement').value = c.unlock_achievement || '';
+    document.getElementById('cedUnlockNext').checked = !!c.unlock_next_challenge;
+    const st = c.stats || {};
+    document.getElementById('cedStatAttempts').textContent = st.total_attempts || 0;
+    document.getElementById('cedStatSuccess').textContent = st.successful_attempts || 0;
+    document.getElementById('cedStatRate').textContent = (st.success_rate != null ? st.success_rate : 0) + '%';
+    document.getElementById('cedStatAvg').textContent = (st.avg_solve_time != null ? st.avg_solve_time : 0) + 's';
+    cedRenderStarter();
+    renderExamples();
+    renderTestCases();
+    updateDiscordPreview();
+    chToEditor();
+}
+
+function previewChallenge(id) {
+    editChallenge(id).then(() => chShowCedTab('discord'));
+}
+
+function newChallenge() {
+    _chEditor = {
+        id: null,
+        key: null,
+        lang: 'Python',
+        starter: Object.assign({}, _chStarterTemplates),
+        examples: [],
+        test_cases: [],
+        dirty: false
+    };
+    document.getElementById('cedTitle').textContent = 'Create Challenge';
+    document.getElementById('cedChTitle').value = '';
+    document.getElementById('cedChLang').value = 'Python';
+    document.getElementById('cedChDiff').value = 'Easy';
+    document.getElementById('cedChCat').value = '';
+    document.getElementById('cedChTime').value = '';
+    document.getElementById('cedChEnabled').checked = true;
+    document.getElementById('cedChDesc').value = '';
+    document.getElementById('cedTimeLimit').value = 2;
+    document.getElementById('cedMemLimit').value = 256;
+    document.getElementById('cedMaxCode').value = 100000;
+    document.getElementById('cedIgnoreTrailing').checked = false;
+    document.getElementById('cedIgnoreEmpty').checked = false;
+    document.getElementById('cedCaseSensitive').checked = true;
+    document.getElementById('cedXpReward').value = 50;
+    document.getElementById('cedCoinsReward').value = 10;
+    document.getElementById('cedAchievement').value = '';
+    document.getElementById('cedUnlockNext').checked = false;
+    document.getElementById('cedStatAttempts').textContent = '0';
+    document.getElementById('cedStatSuccess').textContent = '0';
+    document.getElementById('cedStatRate').textContent = '0%';
+    document.getElementById('cedStatAvg').textContent = '0s';
+    cedRenderStarter();
+    renderExamples();
+    renderTestCases();
+    updateDiscordPreview();
+    chToEditor();
+}
+
+async function duplicateChallenge(id) {
+    const r = await fetch(`/api/challenges/${id}/duplicate`, { method: 'POST' });
+    if (r.ok) { showToast('✅ Challenge duplicated', 'success'); loadChallenges(); }
+    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+}
+
+async function deleteChallenge(id) {
+    if (!confirm('Delete this challenge permanently?')) return;
+    const r = await fetch('/api/challenges/' + id, { method: 'DELETE' });
+    if (r.ok) { showToast('✅ Challenge deleted', 'success'); loadChallenges(); }
+    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+}
+
+async function toggleChallenge(id, enabled) {
+    const r = await fetch('/api/challenges/' + id, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled })
+    });
+    if (r.ok) { showToast(enabled ? '✅ Challenge enabled' : '✅ Challenge disabled', 'success'); loadChallenges(); }
+    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+}
+
+// ---- Leaderboard ----
+
+async function loadChallengeLeaderboard() {
+    const wrap = document.getElementById('chLeaderboardBody');
+    if (!wrap) return;
+    try {
+        const r = await fetch('/api/challenges/leaderboard');
+        const rows = await r.json();
+        if (!Array.isArray(rows) || !rows.length) {
+            wrap.innerHTML = '<p>No leaderboard data yet. Users earn XP by solving challenges.</p>';
+            return;
+        }
+        const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+        wrap.innerHTML = rows.map(x => `
+        <div class="lb-row">
+            <span class="lb-rank ${x.rank <= 3 ? 'lb-medal' : ''}">${medals[x.rank] || x.rank}</span>
+            <span class="lb-name">${escHtml(x.username)}</span>
+            <span class="lb-solved">${x.solved} solved</span>
+            <span class="lb-coins">🪙 ${x.coins}</span>
+            <span class="lb-xp">⚡ ${x.xp} XP</span>
+        </div>`).join('');
+    } catch(e) { wrap.innerHTML = '<p style="color:var(--text-muted)">Failed to load leaderboard.</p>'; }
+}
+
+// ---- Editor tabs ----
+
+function chShowCedTab(name) {
+    document.querySelectorAll('.ced-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.ced === name));
+    document.querySelectorAll('.ced-panel').forEach(p => p.classList.toggle('active', p.id === 'ced-' + name));
+}
+
+function cedRenderStarter() {
+    const tabs = document.getElementById('cedStarterTabs');
+    tabs.innerHTML = _chLangs.map(l =>
+        `<button class="lang-tab ${l === _chEditor.lang ? 'active' : ''}" onclick="cedStarterLang('${l}')">${l}</button>`
+    ).join('');
+    document.getElementById('cedStarterCode').value = _chEditor.starter[_chEditor.lang] || '';
+    document.getElementById('cedStarterStatus').textContent = '';
+}
+
+function cedStarterLang(lang) {
+    _chEditor.starter[_chEditor.lang] = document.getElementById('cedStarterCode').value;
+    _chEditor.lang = lang;
+    cedRenderStarter();
+    document.getElementById('cedChLang').value = lang;
+    updateDiscordPreview();
+}
+
+function chSaveStarter() {
+    _chEditor.starter[_chEditor.lang] = document.getElementById('cedStarterCode').value;
+    _chEditor.dirty = true;
+    const el = document.getElementById('cedStarterStatus');
+    el.textContent = '✅ Saved for ' + _chEditor.lang;
+    setTimeout(() => el.textContent = '', 2000);
+}
+
+function chResetStarter() {
+    _chEditor.starter[_chEditor.lang] = _chStarterTemplates[_chEditor.lang] || '';
+    document.getElementById('cedStarterCode').value = _chEditor.starter[_chEditor.lang];
+    _chEditor.dirty = true;
+    const el = document.getElementById('cedStarterStatus');
+    el.textContent = '↺ Reset to default';
+    setTimeout(() => el.textContent = '', 2000);
+}
+
+// ---- Examples ----
+
+function renderExamples() {
+    const wrap = document.getElementById('cedExamplesList');
+    wrap.innerHTML = _chEditor.examples.map((e, i) => `
+    <div class="ch-editor-block">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <strong>Example ${i + 1}</strong>
+            <button class="btn btn-sm btn-danger" onclick="removeExample(${i})">Remove</button>
+        </div>
+        <div class="form-group">
+            <label>Input</label>
+            <textarea class="form-input code-input" rows="2" oninput="chExampleField(${i}, 'input', this.value)">${escHtml(e.input)}</textarea>
+        </div>
+        <div class="form-group">
+            <label>Expected Output</label>
+            <textarea class="form-input code-input" rows="2" oninput="chExampleField(${i}, 'output', this.value)">${escHtml(e.output)}</textarea>
+        </div>
+        <div class="form-group">
+            <label>Explanation</label>
+            <textarea class="form-input" rows="1" oninput="chExampleField(${i}, 'explanation', this.value)">${escHtml(e.explanation)}</textarea>
+        </div>
+    </div>`).join('') || '<p style="color:var(--text-muted)">No examples yet. Add some to help users understand the challenge.</p>';
+}
+
+function chExampleField(i, field, value) {
+    _chEditor.examples[i][field] = value;
+    _chEditor.dirty = true;
+}
+
+function addExample() {
+    _chEditor.examples.push({ input: '', output: '', explanation: '' });
+    renderExamples();
+}
+
+function removeExample(i) {
+    _chEditor.examples.splice(i, 1);
+    renderExamples();
+}
+
+// ---- Test cases ----
+
+function renderTestCases() {
+    const wrap = document.getElementById('cedTestsList');
+    wrap.innerHTML = _chEditor.test_cases.map((t, i) => `
+    <div class="ch-editor-block">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <strong>Test Case ${i + 1}</strong>
+            <div style="display:flex;align-items:center;gap:12px">
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+                    <input type="checkbox" ${t.hidden ? 'checked' : ''} onchange="chTestHidden(${i}, this.checked)">
+                    Hidden
+                </label>
+                <button class="btn btn-sm btn-danger" onclick="removeTestCase(${i})">Remove</button>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Input</label>
+                <textarea class="form-input code-input" rows="2" oninput="chTestField(${i}, 'input', this.value)">${escHtml(t.input)}</textarea>
+            </div>
+            <div class="form-group">
+                <label>Expected Output</label>
+                <textarea class="form-input code-input" rows="2" oninput="chTestField(${i}, 'expected_output', this.value)">${escHtml(t.expected_output)}</textarea>
+            </div>
+        </div>
+    </div>`).join('') || '<p style="color:var(--text-muted)">No test cases yet. Hidden test cases are used to judge submissions.</p>';
+}
+
+function chTestField(i, field, value) {
+    _chEditor.test_cases[i][field] = value;
+    _chEditor.dirty = true;
+}
+
+function chTestHidden(i, val) {
+    _chEditor.test_cases[i].hidden = val;
+    _chEditor.dirty = true;
+}
+
+function addTestCase() {
+    _chEditor.test_cases.push({ input: '', expected_output: '', hidden: true });
+    renderTestCases();
+}
+
+function removeTestCase(i) {
+    _chEditor.test_cases.splice(i, 1);
+    renderTestCases();
+}
+
+// ---- Rich text toolbar ----
+
+function rtWrap(pre, post) {
+    if (typeof post === 'undefined') post = pre;
+    const ta = document.getElementById('cedChDesc');
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const text = ta.value;
+    ta.value = text.slice(0, s) + pre + text.slice(s, e) + post + text.slice(e);
+    ta.focus();
+    ta.selectionStart = s + pre.length;
+    ta.selectionEnd = e + pre.length;
+    _chEditor.dirty = true;
+    updateDiscordPreview();
+}
+
+function rtBullet() {
+    const ta = document.getElementById('cedChDesc');
+    const s = ta.selectionStart;
+    const text = ta.value;
+    ta.value = text.slice(0, s) + '\n- ' + text.slice(s);
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = s + 3;
+    _chEditor.dirty = true;
+    updateDiscordPreview();
+}
+
+function chRenderMarkdown(src) {
+    return escHtml(src)
+        .replace(/```([\s\S]*?)```/g, (m, c) => '<div class="md-code-block">' + c.trim() + '</div>')
+        .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+        .replace(/\n- /g, '\n• ')
+        .replace(/\n/g, '<br>');
+}
+
+// ---- Discord embed preview ----
+
+function updateDiscordPreview() {
+    const title = document.getElementById('cedChTitle').value || 'Challenge Title';
+    const desc = document.getElementById('cedChDesc').value || 'Describe the challenge...';
+    const lang = document.getElementById('cedChLang').value || 'Python';
+    const diff = document.getElementById('cedChDiff').value || 'Easy';
+    const cat = document.getElementById('cedChCat').value || '—';
+    const time = document.getElementById('cedChTime').value || '—';
+    const xp = document.getElementById('cedXpReward').value || 0;
+    const color = (_chSettings && _chSettings.embed_color) || '#5865F2';
+    const thumb = (_chSettings && _chSettings.thumbnail) || '';
+    const footer = (_chSettings && _chSettings.footer) || 'D&T Programming Challenges';
+
+    document.getElementById('cedPreviewBar').style.background = color;
+    document.getElementById('cedPreviewTitle').textContent = title;
+    document.getElementById('cedPreviewDesc').innerHTML = chRenderMarkdown(desc) || 'Describe the challenge...';
+    document.getElementById('cedPreviewFields').innerHTML = `
+        <div class="embed-field"><span class="embed-field-name">Difficulty</span><span class="ch-diff ${chDiffClass(diff)}">${diff}</span></div>
+        <div class="embed-field"><span class="embed-field-name">Language</span>${escHtml(lang)}</div>
+        <div class="embed-field"><span class="embed-field-name">Category</span>${escHtml(cat)}</div>
+        <div class="embed-field"><span class="embed-field-name">Estimated Time</span>${escHtml(time)}</div>
+        <div class="embed-field"><span class="embed-field-name">Reward</span>⚡ ${xp} XP</div>`;
+    document.getElementById('cedPreviewFooter').textContent = footer;
+    const img = document.getElementById('cedPreviewThumb');
+    if (thumb) { img.src = thumb; img.style.display = 'block'; }
+    else img.style.display = 'none';
+    const key = _chEditor.key ? _chEditor.key : (title ? 'New Challenge' : '');
+    document.getElementById('cedKey').textContent = key || 'New Challenge';
+    document.getElementById('cedKey').style.color = _chEditor.key ? 'var(--accent)' : 'var(--text-muted)';
+}
+
+// ---- Save / Cancel ----
+
+function cedReadForm() {
+    _chEditor.starter[_chEditor.lang] = document.getElementById('cedStarterCode').value;
+    return {
+        title: document.getElementById('cedChTitle').value,
+        description: document.getElementById('cedChDesc').value,
+        language: document.getElementById('cedChLang').value,
+        category: document.getElementById('cedChCat').value,
+        difficulty: document.getElementById('cedChDiff').value,
+        enabled: document.getElementById('cedChEnabled').checked,
+        estimated_time: document.getElementById('cedChTime').value,
+        time_limit: parseInt(document.getElementById('cedTimeLimit').value) || 2,
+        memory_limit: parseInt(document.getElementById('cedMemLimit').value) || 256,
+        max_code_size: parseInt(document.getElementById('cedMaxCode').value) || 100000,
+        ignore_trailing_spaces: document.getElementById('cedIgnoreTrailing').checked,
+        ignore_empty_lines: document.getElementById('cedIgnoreEmpty').checked,
+        case_sensitive: document.getElementById('cedCaseSensitive').checked,
+        xp_reward: parseInt(document.getElementById('cedXpReward').value) || 0,
+        coins_reward: parseInt(document.getElementById('cedCoinsReward').value) || 0,
+        unlock_achievement: document.getElementById('cedAchievement').value,
+        unlock_next_challenge: document.getElementById('cedUnlockNext').checked,
+        starter_codes: _chEditor.starter,
+        examples: _chEditor.examples,
+        test_cases: _chEditor.test_cases
+    };
+}
+
+async function saveChallenge() {
+    if (_chSaving) return;
+    const data = cedReadForm();
+    if (!data.title.trim()) { showToast('❌ Title is required', 'error'); chShowCedTab('general'); return; }
+    _chSaving = true;
+    showToast('💾 Saving...', '');
+    try {
+        const r = await fetch('/api/challenges' + (_chEditor.id ? '/' + _chEditor.id : ''), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (r.ok) {
+            const d = await r.json();
+            showToast('✅ Challenge saved (' + d.challenge_key + ')', 'success');
+            _chEditor.id = d.id;
+            _chEditor.key = d.challenge_key;
+            _chEditor.dirty = false;
+            document.getElementById('cedKey').textContent = d.challenge_key;
+            document.getElementById('cedKey').style.color = 'var(--accent)';
+            loadChallenges();
+            loadChallengeLeaderboard();
+        } else {
+            const d = await r.json();
+            showToast('❌ ' + (d.error || 'Failed'), 'error');
+        }
+    } catch(e) {
+        showToast('❌ Network error', 'error');
+    }
+    _chSaving = false;
+}
+let _chSaving = false;
+let _chSuppressReset = false;
+
+async function saveChallengeThenSend() {
+    await saveChallenge();
+    if (_chEditor.key) {
+        const form = new FormData();
+        const ch = document.getElementById('chSendChannel').value || document.getElementById('chChannel').value;
+        if (ch) form.append('channel_id', ch);
+        const r = await fetch('/api/challenges/send-panel', { method: 'POST', body: form });
+        if (r.ok) { const d = await r.json(); showToast('📨 Panels sent (' + d.sent + ' challenges)', 'success'); }
+        else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+    }
+}
+
+function cancelChallengeEdit() {
+    if (_chEditor.dirty && !confirm('You have unsaved changes. Discard them?')) return;
+    document.querySelector('.nav-item[data-tab="challenges"]').click();
+    loadChallenges();
+}
+
+// Tab activation hooks (base.html handler runs first, this delegates after)
+document.addEventListener('click', function(ev) {
+    const item = ev.target.closest('.nav-item');
+    if (!item) return;
+    const tab = item.dataset.tab;
+    if (tab === 'challenges') {
+        _chPage = 1;
+        loadChallengeSettings();
+        loadChallenges();
+        loadChallengeLeaderboard();
+    } else if (tab === 'challenge-editor') {
+        if (_chSuppressReset) _chSuppressReset = false;
+        else newChallenge();
+    }
+});
+
+// Wire editor tab buttons + live preview inputs
+document.addEventListener('click', function(ev) {
+    const btn = ev.target.closest('.ced-tab-btn');
+    if (btn) chShowCedTab(btn.dataset.ced);
+});
+['cedChTitle', 'cedChLang', 'cedChDiff', 'cedChCat', 'cedChTime', 'cedXpReward'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateDiscordPreview);
+});
+document.getElementById('cedChDesc').addEventListener('input', updateDiscordPreview);
+
 // ---- Init ----
 loadSettings();
 loadAutoResponder();
@@ -1308,6 +2212,9 @@ loadRoles();
 loadSecurity();
 loadLogging();
 loadVoiceBots();
+loadChallengeSettings();
+loadChallenges();
+loadChallengeLeaderboard();
 setInterval(loadVoiceBots, 10000);
 setInterval(loadAutoResponder, 15000);
 setInterval(loadTickets, 15000);

@@ -37,6 +37,7 @@ class Bot(commands.Bot):
         await self.load_extension("cogs.autoresponder")
         await self.load_extension("cogs.utility")
         await self.load_extension("cogs.security")
+        await self.load_extension("cogs.challenges")
 
         guild = discord.Object(id=GUILD_ID)
         self.tree.copy_global_to(guild=guild)
@@ -52,6 +53,13 @@ class Bot(commands.Bot):
             print("[Setup] Registered persistent ReactionRole view")
         except Exception as e:
             print(f"[Setup] Could not register ReactionRoleView: {e}")
+
+        try:
+            from cogs.challenges import register_persistent_views
+            register_persistent_views(self)
+            print("[Setup] Registered challenge panel views")
+        except Exception as e:
+            print(f"[Setup] Could not register challenge views: {e}")
 
     async def start(self, *args, **kwargs):
         # Fix: capture the actual running event loop (asyncio.run() creates a new one)

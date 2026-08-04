@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 
-from sqlalchemy import create_engine, Column, Integer, BigInteger, String, Text, Boolean, DateTime
+from sqlalchemy import create_engine, Column, Integer, BigInteger, String, Text, Boolean, DateTime, Float
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -139,6 +139,116 @@ class VoiceBotSetting(Base):
     label = Column(String(80), default="Voice Bot")
     voice_channel_id = Column(BigInteger, nullable=True)
     enabled = Column(Boolean, default=False)
+
+
+class ChallengeSetting(Base):
+    __tablename__ = "challenge_settings"
+
+    guild_id = Column(BigInteger, primary_key=True)
+    enabled = Column(Boolean, default=False)
+    channel_id = Column(BigInteger, nullable=True)
+    embed_color = Column(String(7), default="#5865F2")
+    thumbnail = Column(Text, nullable=True)
+    footer = Column(Text, default="D&T Programming Challenges")
+    leaderboard_enabled = Column(Boolean, default=True)
+    xp_enabled = Column(Boolean, default=True)
+
+
+class Challenge(Base):
+    __tablename__ = "challenges"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    challenge_key = Column(String(32), unique=True, nullable=False)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, default="")
+    language = Column(String(30), default="Python")
+    category = Column(String(80), default="Algorithms")
+    difficulty = Column(String(10), default="Easy")
+    enabled = Column(Boolean, default=True)
+
+    time_limit = Column(Integer, default=2)
+    memory_limit = Column(Integer, default=256)
+    max_code_size = Column(Integer, default=100000)
+    ignore_trailing_spaces = Column(Boolean, default=False)
+    ignore_empty_lines = Column(Boolean, default=False)
+    case_sensitive = Column(Boolean, default=True)
+
+    xp_reward = Column(Integer, default=50)
+    coins_reward = Column(Integer, default=10)
+    unlock_achievement = Column(String(120), nullable=True)
+    unlock_next_challenge = Column(Boolean, default=False)
+    estimated_time = Column(String(40), default="~30 min")
+
+    total_attempts = Column(Integer, default=0)
+    successful_attempts = Column(Integer, default=0)
+    avg_solve_time = Column(Float, default=0.0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ChallengeExample(Base):
+    __tablename__ = "challenge_examples"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    challenge_id = Column(Integer, nullable=False)
+    input = Column(Text, default="")
+    output = Column(Text, default="")
+    explanation = Column(Text, default="")
+
+
+class ChallengeStarterCode(Base):
+    __tablename__ = "challenge_starter_code"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    challenge_id = Column(Integer, nullable=False)
+    language = Column(String(30), nullable=False)
+    code = Column(Text, default="")
+
+
+class ChallengeTestCase(Base):
+    __tablename__ = "challenge_test_cases"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    challenge_id = Column(Integer, nullable=False)
+    input = Column(Text, default="")
+    expected_output = Column(Text, default="")
+    hidden = Column(Boolean, default=True)
+
+
+class UserChallengeProgress(Base):
+    __tablename__ = "challenge_progress"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, nullable=False)
+    user_id = Column(BigInteger, nullable=False)
+    challenge_id = Column(Integer, nullable=False)
+    solved = Column(Boolean, default=False)
+    attempts = Column(Integer, default=0)
+    best_time = Column(Float, nullable=True)
+    solved_at = Column(DateTime, nullable=True)
+
+
+class UserXP(Base):
+    __tablename__ = "user_xp"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, nullable=False)
+    user_id = Column(BigInteger, nullable=False)
+    xp = Column(Integer, default=0)
+    coins = Column(Integer, default=0)
+    challenges_solved = Column(Integer, default=0)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ChallengeAchievement(Base):
+    __tablename__ = "challenge_achievements"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(BigInteger, nullable=False)
+    user_id = Column(BigInteger, nullable=False)
+    name = Column(String(120), nullable=False)
+    unlocked_at = Column(DateTime, default=datetime.utcnow)
 
 
 def init_db():

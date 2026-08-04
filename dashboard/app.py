@@ -13,6 +13,9 @@ from database import (
     get_session, get_settings, GuildSettings,
     AutoResponder, ActiveTicket, LogEntry,
     SecurityLimit, SecurityWhitelist,
+    ChallengeSetting, Challenge, ChallengeExample,
+    ChallengeStarterCode, ChallengeTestCase,
+    UserChallengeProgress, UserXP, ChallengeAchievement,
 )
 from voice_bots import get_voice_bot_list, get_voice_bot_user_id, _save_setting, voice_bots
 
@@ -231,6 +234,434 @@ def api_voicebots_update():
     if vb:
         vb.trigger_sync()
     return jsonify({"success": True, "rename_error": " | ".join(errors)})
+
+
+# ---- Programming Challenges ----
+
+def _challenge_summary(ch):
+    rate = round(ch.successful_attempts / ch.total_attempts * 100) if ch.total_attempts else 0
+    return {
+        "id": ch.id,
+        "challenge_key": ch.challenge_key,
+        "title": ch.title,
+        "language": ch.language,
+        "category": ch.category,
+        "difficulty": ch.difficulty,
+        "enabled": bool(ch.enabled),
+        "xp_reward": ch.xp_reward,
+        "total_attempts": ch.total_attempts,
+        "successful_attempts": ch.successful_attempts,
+        "success_rate": rate,
+        "created_at": ch.created_at.isoformat() if ch.created_at else None,
+    }
+
+
+def _challenge_full(ch):
+    sess = get_session()
+    try:
+        examples = sess.query(ChallengeExample).filter_by(challenge_id=ch.id).order_by(ChallengeExample.id.asc()).all()
+        tests = sess.query(ChallengeTestCase).filter_by(challenge_id=ch.id).order_by(ChallengeTestCase.id.asc()).all()
+        starter = sess.query(ChallengeStarterCode).filter_by(challenge_id=ch.id).all()
+        rate = round(ch.successful_attempts / ch.total_attempts * 100) if ch.total_attempts else 0
+        return {
+            "id": ch.id,
+            "challenge_key": ch.challenge_key,
+            "title": ch.title,
+            "description": ch.description,
+            "language": ch.language,
+            "category": ch.category,
+            "difficulty": ch.difficulty,
+            "enabled": bool(ch.enabled),
+            "time_limit": ch.time_limit,
+            "memory_limit": ch.memory_limit,
+            "max_code_size": ch.max_code_size,
+            "ignore_trailing_spaces": bool(ch.ignore_trailing_spaces),
+            "ignore_empty_lines": bool(ch.ignore_empty_lines),
+            "case_sensitive": ch.case_sensitive if ch.case_sensitive is not None else True,
+            "xp_reward": ch.xp_reward,
+            "coins_reward": ch.coins_reward,
+            "unlock_achievement": ch.unlock_achievement,
+            "unlock_next_challenge": bool(ch.unlock_next_challenge),
+            "estimated_time": ch.estimated_time,
+            "stats": {
+                "total_attempts": ch.total_attempts,
+                "successful_attempts": ch.successful_attempts,
+                "success_rate": rate,
+                "avg_solve_time": round(ch.avg_solve_time or 0, 1),
+            },
+            "starter_codes": {sc.language: sc.code for sc in starter},
+            "examples": [
+                {"id": e.id, "input": e.input, "output": e.output, "explanation": e.explanation}
+                for e in examples
+            ],
+            "test_cases": [
+                {"id": t.id, "input": t.input, "expected_output": t.expected_output, "hidden": bool(t.hidden)}
+                for t in tests
+            ],
+        }
+    finally:
+        sess.close()
+
+
+def _save_challenge_children(sess, challenge_id, data):
+    starter = data.get("starter_codes")
+    if isinstance(starter, dict):
+        sess.query(ChallengeStarterCode).filter_by(challenge_id=challenge_id).delete()
+        for lang, code in starter.items():
+            if code is not None:
+                sess.add(ChallengeStarterCode(challenge_id=challenge_id, language=lang, code=code))
+    examples = data.get("examples")
+    if isinstance(examples, list):
+        sess.query(ChallengeExample).filter_by(challenge_id=challenge_id).delete()
+        for e in examples:
+            sess.add(ChallengeExample(
+                challenge_id=challenge_id,
+                input=e.get("input", ""),
+                output=e.get("output", ""),
+                explanation=e.get("explanation", ""),
+            ))
+    tests = data.get("test_cases")
+    if isinstance(tests, list):
+        sess.query(ChallengeTestCase).filter_by(challenge_id=challenge_id).delete()
+        for t in tests:
+            sess.add(ChallengeTestCase(
+                challenge_id=challenge_id,
+                input=t.get("input", ""),
+                expected_output=t.get("expected_output", ""),
+                hidden=bool(t.get("hidden", True)),
+            ))
+
+
+@app.route("/api/challenges/settings", methods=["GET", "POST"])
+@login_required
+def api_challenge_settings():
+    sess = get_session()
+    try:
+        s = sess.get(ChallengeSetting, GUILD_ID)
+        if not s:
+            s = ChallengeSetting(guild_id=GUILD_ID)
+            sess.add(s)
+            sess.commit()
+        if request.method == "POST":
+            s.enabled = request.form.get("enabled") == "on"
+            ch = request.form.get("channel_id", "").strip()
+            s.channel_id = int(ch) if ch else None
+            s.embed_color = request.form.get("embed_color") or "#5865F2"
+            s.thumbnail = request.form.get("thumbnail") or None
+            s.footer = request.form.get("footer") or "D&T Programming Challenges"
+            s.leaderboard_enabled = request.form.get("leaderboard_enabled") == "on"
+            s.xp_enabled = request.form.get("xp_enabled") == "on"
+            sess.commit()
+            return jsonify({"ok": True})
+        return jsonify({
+            "enabled": bool(s.enabled),
+            "channel_id": str(s.channel_id) if s.channel_id else None,
+            "embed_color": s.embed_color or "#5865F2",
+            "thumbnail": s.thumbnail,
+            "footer": s.footer,
+            "leaderboard_enabled": bool(s.leaderboard_enabled),
+            "xp_enabled": bool(s.xp_enabled),
+        })
+    finally:
+        sess.close()
+
+
+@app.route("/api/challenges/send-panel", methods=["POST"])
+@login_required
+def api_challenge_send_panel():
+    bot = bot_state.get("bot")
+    if not bot:
+        return jsonify({"error": "Bot offline"}), 503
+    sess = get_session()
+    try:
+        s = sess.get(ChallengeSetting, GUILD_ID)
+        if request.form.get("channel_id"):
+            channel_id = int(request.form["channel_id"])
+        elif s and s.channel_id:
+            channel_id = s.channel_id
+        else:
+            return jsonify({"error": "No channel selected"}), 400
+    finally:
+        sess.close()
+
+    async def _do():
+        cog = bot.get_cog("Challenges")
+        if not cog:
+            return {"error": "Challenges cog not loaded"}
+        return await cog.send_panels(channel_id)
+
+    future = asyncio.run_coroutine_threadsafe(_do(), bot.loop)
+    try:
+        result = future.result(timeout=60)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    if result.get("error"):
+        return jsonify({"error": result["error"]}), 400
+    return jsonify({"success": True, "sent": result.get("sent", 0)})
+
+
+@app.route("/api/challenges")
+@login_required
+def api_challenges_list():
+    q = request.args.get("search", "").strip().lower()
+    language = request.args.get("language", "").strip()
+    difficulty = request.args.get("difficulty", "").strip()
+    status = request.args.get("status", "").strip()
+    sort = request.args.get("sort", "").strip()
+    try:
+        page = max(1, int(request.args.get("page", 1) or 1))
+    except ValueError:
+        page = 1
+    try:
+        per_page = max(5, min(50, int(request.args.get("per_page", 10) or 10)))
+    except ValueError:
+        per_page = 10
+
+    sess = get_session()
+    try:
+        query = sess.query(Challenge)
+        if q:
+            query = query.filter(
+                Challenge.title.ilike(f"%{q}%") | Challenge.challenge_key.ilike(f"%{q}%")
+            )
+        if language:
+            query = query.filter(Challenge.language == language)
+        if difficulty:
+            query = query.filter(Challenge.difficulty == difficulty)
+        if status == "enabled":
+            query = query.filter(Challenge.enabled.is_(True))
+        elif status == "disabled":
+            query = query.filter(Challenge.enabled.is_(False))
+
+        from sqlalchemy import case
+        diff_order = case(
+            (Challenge.difficulty == "Easy", 0),
+            (Challenge.difficulty == "Medium", 1),
+            (Challenge.difficulty == "Hard", 2),
+            (Challenge.difficulty == "Expert", 3),
+            else_=4,
+        )
+        if sort == "difficulty":
+            query = query.order_by(diff_order.asc(), Challenge.id.asc())
+        elif sort == "difficulty_desc":
+            query = query.order_by(diff_order.desc(), Challenge.id.asc())
+        elif sort == "language":
+            query = query.order_by(Challenge.language.asc(), Challenge.id.asc())
+        elif sort == "newest":
+            query = query.order_by(Challenge.id.desc())
+        else:
+            query = query.order_by(Challenge.id.asc())
+
+        total = query.count()
+        rows = query.offset((page - 1) * per_page).limit(per_page).all()
+        return jsonify({
+            "items": [_challenge_summary(c) for c in rows],
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": max(1, (total + per_page - 1) // per_page),
+        })
+    finally:
+        sess.close()
+
+
+@app.route("/api/challenges/leaderboard")
+@login_required
+def api_challenge_leaderboard():
+    sess = get_session()
+    try:
+        rows = sess.query(UserXP).filter_by(guild_id=GUILD_ID).order_by(UserXP.xp.desc()).limit(10).all()
+        guild = bot_state["bot"].guild if bot_state.get("bot") else None
+        out = []
+        for i, r in enumerate(rows):
+            member = guild.get_member(r.user_id) if guild else None
+            out.append({
+                "rank": i + 1,
+                "user_id": str(r.user_id),
+                "username": member.display_name if member else f"User {r.user_id}",
+                "xp": r.xp,
+                "coins": r.coins,
+                "solved": r.challenges_solved,
+            })
+        return jsonify(out)
+    finally:
+        sess.close()
+
+
+@app.route("/api/challenges/<int:challenge_id>")
+@login_required
+def api_challenge_get(challenge_id):
+    sess = get_session()
+    try:
+        ch = sess.get(Challenge, challenge_id)
+        if not ch:
+            return jsonify({"error": "Challenge not found"}), 404
+        return jsonify(_challenge_full(ch))
+    finally:
+        sess.close()
+
+
+@app.route("/api/challenges", methods=["POST"])
+@login_required
+def api_challenge_create():
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "Title is required"}), 400
+    sess = get_session()
+    try:
+        ch = Challenge(
+            challenge_key="CH-000",
+            title=title,
+            description=data.get("description", "") or "",
+            language=data.get("language") or "Python",
+            category=data.get("category") or "Algorithms",
+            difficulty=data.get("difficulty") or "Easy",
+            time_limit=int(data.get("time_limit") or 2),
+            memory_limit=int(data.get("memory_limit") or 256),
+            max_code_size=int(data.get("max_code_size") or 100000),
+            ignore_trailing_spaces=bool(data.get("ignore_trailing_spaces")),
+            ignore_empty_lines=bool(data.get("ignore_empty_lines")),
+            case_sensitive=data.get("case_sensitive", True) if data.get("case_sensitive") is not None else True,
+            xp_reward=int(data.get("xp_reward") or 0),
+            coins_reward=int(data.get("coins_reward") or 0),
+            unlock_achievement=(data.get("unlock_achievement") or "").strip() or None,
+            unlock_next_challenge=bool(data.get("unlock_next_challenge")),
+            estimated_time=data.get("estimated_time") or "~30 min",
+        )
+        sess.add(ch)
+        sess.flush()
+        ch.challenge_key = f"CH-{ch.id:03d}"
+        _save_challenge_children(sess, ch.id, data)
+        sess.commit()
+        return jsonify({"id": ch.id, "challenge_key": ch.challenge_key})
+    finally:
+        sess.close()
+
+
+@app.route("/api/challenges/<int:challenge_id>", methods=["POST"])
+@login_required
+def api_challenge_update(challenge_id):
+    data = request.get_json(silent=True) or {}
+    sess = get_session()
+    try:
+        ch = sess.get(Challenge, challenge_id)
+        if not ch:
+            return jsonify({"error": "Challenge not found"}), 404
+        if "title" in data:
+            ch.title = (data.get("title") or "").strip() or ch.title
+        if "description" in data:
+            ch.description = data.get("description") or ""
+        if "language" in data:
+            ch.language = data.get("language") or "Python"
+        if "category" in data:
+            ch.category = data.get("category") or "Algorithms"
+        if "difficulty" in data:
+            ch.difficulty = data.get("difficulty") or "Easy"
+        if "enabled" in data:
+            ch.enabled = bool(data.get("enabled"))
+        if "time_limit" in data:
+            ch.time_limit = int(data.get("time_limit") or 2)
+        if "memory_limit" in data:
+            ch.memory_limit = int(data.get("memory_limit") or 256)
+        if "max_code_size" in data:
+            ch.max_code_size = int(data.get("max_code_size") or 100000)
+        if "ignore_trailing_spaces" in data:
+            ch.ignore_trailing_spaces = bool(data.get("ignore_trailing_spaces"))
+        if "ignore_empty_lines" in data:
+            ch.ignore_empty_lines = bool(data.get("ignore_empty_lines"))
+        if "case_sensitive" in data:
+            ch.case_sensitive = bool(data.get("case_sensitive"))
+        if "xp_reward" in data:
+            ch.xp_reward = int(data.get("xp_reward") or 0)
+        if "coins_reward" in data:
+            ch.coins_reward = int(data.get("coins_reward") or 0)
+        if "unlock_achievement" in data:
+            ch.unlock_achievement = (data.get("unlock_achievement") or "").strip() or None
+        if "unlock_next_challenge" in data:
+            ch.unlock_next_challenge = bool(data.get("unlock_next_challenge"))
+        if "estimated_time" in data:
+            ch.estimated_time = data.get("estimated_time") or "~30 min"
+        _save_challenge_children(sess, ch.id, data)
+        sess.commit()
+        return jsonify({"id": ch.id, "challenge_key": ch.challenge_key})
+    finally:
+        sess.close()
+
+
+@app.route("/api/challenges/<int:challenge_id>/duplicate", methods=["POST"])
+@login_required
+def api_challenge_duplicate(challenge_id):
+    sess = get_session()
+    try:
+        ch = sess.get(Challenge, challenge_id)
+        if not ch:
+            return jsonify({"error": "Challenge not found"}), 404
+        new = Challenge(
+            challenge_key="CH-000",
+            title=f"{ch.title} (Copy)",
+            description=ch.description,
+            language=ch.language,
+            category=ch.category,
+            difficulty=ch.difficulty,
+            enabled=False,
+            time_limit=ch.time_limit,
+            memory_limit=ch.memory_limit,
+            max_code_size=ch.max_code_size,
+            ignore_trailing_spaces=ch.ignore_trailing_spaces,
+            ignore_empty_lines=ch.ignore_empty_lines,
+            case_sensitive=ch.case_sensitive,
+            xp_reward=ch.xp_reward,
+            coins_reward=ch.coins_reward,
+            unlock_achievement=ch.unlock_achievement,
+            unlock_next_challenge=ch.unlock_next_challenge,
+            estimated_time=ch.estimated_time,
+        )
+        sess.add(new)
+        sess.flush()
+        new.challenge_key = f"CH-{new.id:03d}"
+        for sc in sess.query(ChallengeStarterCode).filter_by(challenge_id=ch.id).all():
+            sess.add(ChallengeStarterCode(challenge_id=new.id, language=sc.language, code=sc.code))
+        for e in sess.query(ChallengeExample).filter_by(challenge_id=ch.id).all():
+            sess.add(ChallengeExample(challenge_id=new.id, input=e.input, output=e.output, explanation=e.explanation))
+        for t in sess.query(ChallengeTestCase).filter_by(challenge_id=ch.id).all():
+            sess.add(ChallengeTestCase(challenge_id=new.id, input=t.input, expected_output=t.expected_output, hidden=t.hidden))
+        sess.commit()
+        return jsonify({"id": new.id, "challenge_key": new.challenge_key})
+    finally:
+        sess.close()
+
+
+@app.route("/api/challenges/<int:challenge_id>/toggle", methods=["POST"])
+@login_required
+def api_challenge_toggle(challenge_id):
+    sess = get_session()
+    try:
+        ch = sess.get(Challenge, challenge_id)
+        if not ch:
+            return jsonify({"error": "Challenge not found"}), 404
+        ch.enabled = not ch.enabled
+        sess.commit()
+        return jsonify({"enabled": bool(ch.enabled)})
+    finally:
+        sess.close()
+
+
+@app.route("/api/challenges/<int:challenge_id>", methods=["DELETE"])
+@login_required
+def api_challenge_delete(challenge_id):
+    sess = get_session()
+    try:
+        ch = sess.get(Challenge, challenge_id)
+        if not ch:
+            return jsonify({"error": "Challenge not found"}), 404
+        for model in (ChallengeStarterCode, ChallengeExample, ChallengeTestCase, UserChallengeProgress):
+            sess.query(model).filter_by(challenge_id=challenge_id).delete()
+        sess.delete(ch)
+        sess.commit()
+        return jsonify({"ok": True})
+    finally:
+        sess.close()
 
 
 # ---- Debug ----
