@@ -1688,6 +1688,12 @@ function populateLangFilter() {
     sel.innerHTML = '<option value="">All</option>' + _chLangs.map(l => `<option>${l}</option>`).join('');
 }
 
+function populateEditorLangs() {
+    const sel = document.getElementById('cedChLang');
+    if (!sel || sel.options.length > 0) return;
+    sel.innerHTML = _chLangs.map(l => `<option value="${l}">${l}</option>`).join('');
+}
+
 async function saveChallengeSettings() {
     const form = new FormData();
     form.append('enabled', document.getElementById('chEnabled').checked ? 'on' : '');
@@ -1707,9 +1713,14 @@ async function sendChallengePanel() {
     const ch = document.getElementById('chSendChannel').value || document.getElementById('chChannel').value;
     if (ch) form.append('channel_id', ch);
     showToast('📨 Sending panels...', '');
-    const r = await fetch('/api/challenges/send-panel', { method: 'POST', body: form });
-    if (r.ok) { const d = await r.json(); showToast('✅ Panels sent (' + d.sent + ' challenges)', 'success'); }
-    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+    try {
+        const r = await fetch('/api/challenges/send-panel', { method: 'POST', body: form });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && d.success) showToast('✅ Panel sent', 'success');
+        else showToast('❌ ' + (d.error || 'Failed to send panel'), 'error');
+    } catch(e) {
+        showToast('❌ Network error', 'error');
+    }
 }
 
 // ---- List ----
@@ -2160,14 +2171,7 @@ let _chSuppressReset = false;
 
 async function saveChallengeThenSend() {
     await saveChallenge();
-    if (_chEditor.key) {
-        const form = new FormData();
-        const ch = document.getElementById('chSendChannel').value || document.getElementById('chChannel').value;
-        if (ch) form.append('channel_id', ch);
-        const r = await fetch('/api/challenges/send-panel', { method: 'POST', body: form });
-        if (r.ok) { const d = await r.json(); showToast('📨 Panels sent (' + d.sent + ' challenges)', 'success'); }
-        else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
-    }
+    if (_chEditor.key) await sendChallengePanel();
 }
 
 function cancelChallengeEdit() {
@@ -2212,6 +2216,7 @@ loadRoles();
 loadSecurity();
 loadLogging();
 loadVoiceBots();
+populateEditorLangs();
 loadChallengeSettings();
 loadChallenges();
 loadChallengeLeaderboard();

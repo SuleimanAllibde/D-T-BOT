@@ -1,4 +1,5 @@
 import asyncio
+import random
 import time
 from datetime import datetime
 
@@ -11,6 +12,7 @@ from utils.embeds import primary, success, error
 from utils.judge import run_code, outputs_match
 
 LANGUAGES = ["C++", "Python", "JavaScript", "Java", "C#", "Go", "Rust"]
+DIFFICULTIES = ["Easy", "Medium", "Hard", "Expert"]
 
 DIFF_ICONS = {"Easy": "🟢", "Medium": "🟡", "Hard": "🔴", "Expert": "💀"}
 
@@ -53,45 +55,71 @@ def build_challenge_embed(ch: Challenge, settings: ChallengeSetting, bot):
     return embed
 
 
-class StartChallengeButton(discord.ui.Button):
-    def __init__(self, challenge_id: int, bot=None):
-        super().__init__(label="Start Challenge", style=discord.ButtonStyle.primary, emoji="▶️", custom_id=f"dt_chal_start:{challenge_id}")
-        self.challenge_id = challenge_id
-        self.bot = bot
-
-    async def callback(self, interaction: discord.Interaction):
-        sess = get_session()
-        try:
-            settings = sess.get(ChallengeSetting, interaction.guild_id)
-            if not settings or not settings.enabled:
-                await interaction.response.send_message("❌ Programming Challenges are currently disabled.", ephemeral=True)
-                return
-            ch = sess.get(Challenge, self.challenge_id)
-            if not ch or not ch.enabled:
-                await interaction.response.send_message("❌ This challenge is no longer available.", ephemeral=True)
-                return
-
-            starter = {}
-            for sc in sess.query(ChallengeStarterCodeModel).filter_by(challenge_id=ch.id).all():
-                starter[sc.language] = sc.code
-
-            languages = [l for l in LANGUAGES if l in starter] or [ch.language] if ch.language in LANGUAGES else LANGUAGES
-            if starter:
-                available = [l for l in LANGUAGES if l in starter]
-                if available:
-                    languages = available
-
-            embed = build_challenge_embed(ch, settings, self.bot or interaction.client)
-            view = ChallengeSessionView(ch.id, languages, starter, ch)
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-        finally:
-            sess.close()
+def build_master_embed(settings: ChallengeSetting, counts: dict, bot):
+    try:
+        color = int((settings.embed_color or "#5865F2").lstrip("#"), 16)
+    except ValueError:
+        color = 0x5865F2
+    embed = discord.Embed(
+        title="⚡ Programming Challenges",
+        description=(
+            "Pick a **difficulty** below and you'll be given a **random challenge** to solve.\n\n"
+            "Solve it to earn **XP** and **coins** and climb the leaderboard! 🏆"
+        ),
+        color=color,
+    )
+    if settings.thumbnail:
+        embed.set_thumbnail(url=settings.thumbnail)
+    for d in DIFFICULTIES:
+        n = counts.get(d, 0)
+        icon = DIFF_ICONS.get(d, "")
+        embed.add_field(
+            name=f"{icon} {d}",
+            value=f"{n} challenge{'s' if n != 1 else ''}" if n else "None yet",
+            inline=True,
+        )
+    embed.set_footer(text=settings.footer or "D&T Programming Challenges")
+    if bot and bot.user:
+        embed.set_author(name="Programming Challenges", icon_url=bot.user.display_avatar.url)
+    return embed
 
 
-class LeaderboardButton(discord.ui.Button):
-    def __init__(self, challenge_id: int):
-        super().__init__(label="View Leaderboard", style=discord.ButtonStyle.secondary, emoji="🏆", custom_id=f"dt_chal_lb:{challenge_id}")
-        self.challenge_id = challenge_id
+def _pick_random_challenge(sess, guild_id: int, user_id: int, difficulty: str) -> Challenge:
+    challenges = (
+        sess.query(Challenge)
+        .filter(Challenge.enabled.is_(True), Challenge.difficulty == difficulty)
+        .order_by(Challenge.id.asc())
+        .all()
+    )
+    if not challenges:
+        return None
+    solved_ids = {
+        r.challenge_id
+        for r in sess.query(UserChallengeProgress)
+        .filter_by(guild_id=guild_id, user_id=user_id, solved=True)
+        .all()
+    }
+    pool = [c for c in challenges if c.id not in solved_ids]
+    return random.choice(pool or challenges)
+
+
+def _get_challenge_languages(sess, challenge: Challenge) -> list:
+    starter = {
+        sc.language: sc.code
+        for sc in sess.query(ChallengeStarterCodeModel).filter_by(challenge_id=challenge.id).all()
+    }
+    if starter:
+        available = [l for l in LANGUAGES if l in starter]
+        if available:
+            return available
+    if challenge.language in LANGUAGES:
+        return [challenge.language]
+    return LANGUAGES
+
+
+class GlobalLeaderboardButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="View Leaderboard", style=discord.ButtonStyle.secondary, emoji="🏆", custom_id="dt_chal_lb_global")
 
     async def callback(self, interaction: discord.Interaction):
         sess = get_session()
@@ -110,22 +138,55 @@ class LeaderboardButton(discord.ui.Button):
             sess.close()
 
 
-class ChallengePanelView(discord.ui.View):
-    def __init__(self, challenge_id: int, bot=None, show_leaderboard: bool = True):
+class ChallengeMasterView(discord.ui.View):
+    """Persistent panel: pick a difficulty -> get a random challenge."""
+
+    def __init__(self, difficulties: list, bot=None, show_leaderboard: bool = True):
         super().__init__(timeout=None)
         self.bot = bot
-        self.add_item(StartChallengeButton(challenge_id, bot=bot))
+        options = []
+        for d in difficulties:
+            kwargs = {"label": d, "value": d}
+            if DIFF_ICONS.get(d):
+                kwargs["emoji"] = DIFF_ICONS[d]
+            options.append(discord.SelectOption(**kwargs))
+        select = discord.ui.Select(
+            placeholder="Pick a difficulty for a random challenge...",
+            options=options,
+            custom_id="dt_chal_diff",
+        )
+        select.callback = self._on_difficulty
+        self.add_item(select)
         if show_leaderboard:
-            self.add_item(LeaderboardButton(challenge_id))
+            self.add_item(GlobalLeaderboardButton())
+
+    async def _on_difficulty(self, interaction: discord.Interaction):
+        difficulty = interaction.data["values"][0]
+        sess = get_session()
+        try:
+            settings = sess.get(ChallengeSetting, interaction.guild_id)
+            if not settings or not settings.enabled:
+                await interaction.response.send_message("❌ Programming Challenges are currently disabled.", ephemeral=True)
+                return
+            ch = _pick_random_challenge(sess, interaction.guild_id, interaction.user.id, difficulty)
+            if not ch:
+                await interaction.response.send_message(f"❌ No enabled challenges found for **{difficulty}**.", ephemeral=True)
+                return
+            languages = _get_challenge_languages(sess, ch)
+            embed = build_challenge_embed(ch, settings, self.bot or interaction.client)
+            view = ChallengeSessionView(ch.id, languages, ch, interaction.user.id)
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        finally:
+            sess.close()
 
 
 class ChallengeSessionView(discord.ui.View):
-    def __init__(self, challenge_id: int, languages: list, starter_codes: dict, challenge: Challenge):
+    def __init__(self, challenge_id: int, languages: list, challenge: Challenge, user_id: int):
         super().__init__(timeout=900)
         self.challenge_id = challenge_id
         self.challenge = challenge
         self.languages = languages
-        self.starter_codes = starter_codes
+        self.user_id = user_id
         self.selected_language = languages[0] if languages else "Python"
         self.start_time = time.time()
 
@@ -143,7 +204,16 @@ class ChallengeSessionView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
 
     async def _on_submit(self, interaction: discord.Interaction):
-        starter = self.starter_codes.get(self.selected_language, "")
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ This session belongs to someone else.", ephemeral=True)
+            return
+        starter = ""
+        sess = get_session()
+        try:
+            row = sess.query(ChallengeStarterCodeModel).filter_by(challenge_id=self.challenge.id, language=self.selected_language).first()
+            starter = row.code if row else ""
+        finally:
+            sess.close()
         modal = CodeSubmitModal(self.challenge, self.selected_language, starter, self.start_time, interaction.user.id, interaction.guild_id)
         await interaction.response.send_modal(modal)
 
@@ -336,13 +406,7 @@ def _clip(text, n=1000):
 
 
 def register_persistent_views(bot: commands.Bot):
-    from database import get_session as _sess
-    sess = _sess()
-    try:
-        for ch in sess.query(Challenge).filter_by(enabled=True).all():
-            bot.add_view(ChallengePanelView(ch.id, bot=bot))
-    finally:
-        sess.close()
+    bot.add_view(ChallengeMasterView(DIFFICULTIES, bot=bot, show_leaderboard=True))
 
 
 class Challenges(commands.Cog):
@@ -354,26 +418,32 @@ class Challenges(commands.Cog):
         for g in self.bot.guilds:
             settings = get_challenge_setting(g.id)
             break
-        if not settings or not settings.enabled:
-            return {"error": "Programming Challenges are disabled"}
+        if not settings:
+            return {"error": "Programming Challenges are not configured yet"}
+        if not settings.enabled:
+            return {"error": "Programming Challenges are disabled — enable them in the dashboard first"}
 
         channel = self.bot.get_channel(channel_id)
         if not channel:
-            return {"error": f"Channel {channel_id} not found"}
+            return {"error": f"Channel {channel_id} not found — make sure the bot can see it"}
 
         sess = get_session()
         try:
-            rows = sess.query(Challenge).filter_by(enabled=True).order_by(Challenge.id.asc()).all()
+            rows = sess.query(Challenge).filter_by(enabled=True).all()
         finally:
             sess.close()
 
-        sent = 0
+        counts = {}
         for ch in rows:
-            embed = build_challenge_embed(ch, settings, self.bot)
-            view = ChallengePanelView(ch.id, bot=self.bot, show_leaderboard=settings.leaderboard_enabled)
-            await channel.send(embed=embed, view=view)
-            sent += 1
-        return {"success": True, "sent": sent}
+            counts[ch.difficulty] = counts.get(ch.difficulty, 0) + 1
+        difficulties = [d for d in DIFFICULTIES if counts.get(d)]
+        if not difficulties:
+            return {"error": "No enabled challenges found — create and enable at least one challenge first"}
+
+        embed = build_master_embed(settings, counts, self.bot)
+        view = ChallengeMasterView(difficulties, bot=self.bot, show_leaderboard=settings.leaderboard_enabled)
+        await channel.send(embed=embed, view=view)
+        return {"success": True, "sent": len(difficulties)}
 
     @app_commands.command(name="challenge-panel", description="Send the programming challenges panel to a channel")
     @app_commands.checks.has_permissions(administrator=True)
@@ -388,7 +458,7 @@ class Challenges(commands.Cog):
         if result.get("error"):
             await interaction.edit_original_response(content=f"❌ {result['error']}")
         else:
-            await interaction.edit_original_response(content=f"✅ Sent {result['sent']} challenge panel(s) to {target.mention}!")
+            await interaction.edit_original_response(content=f"✅ Sent the challenge panel to {target.mention}!")
 
 
 async def setup(bot: commands.Bot):

@@ -3,6 +3,7 @@ import os
 import json
 import asyncio
 import urllib.parse
+from concurrent import futures as concurrent_futures
 from functools import wraps
 from dotenv import load_dotenv
 import requests
@@ -371,7 +372,9 @@ def api_challenge_settings():
 def api_challenge_send_panel():
     bot = bot_state.get("bot")
     if not bot:
-        return jsonify({"error": "Bot offline"}), 503
+        return jsonify({"error": "Bot is offline — start it with `python main.py`"}), 503
+    if not getattr(bot, "loop", None):
+        return jsonify({"error": "Bot is still connecting — try again in a moment"}), 503
     sess = get_session()
     try:
         s = sess.get(ChallengeSetting, GUILD_ID)
@@ -390,9 +393,11 @@ def api_challenge_send_panel():
             return {"error": "Challenges cog not loaded"}
         return await cog.send_panels(channel_id)
 
-    future = asyncio.run_coroutine_threadsafe(_do(), bot.loop)
     try:
+        future = asyncio.run_coroutine_threadsafe(_do(), bot.loop)
         result = future.result(timeout=60)
+    except concurrent_futures.TimeoutError:
+        return jsonify({"error": "Timed out sending the panel — try again"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     if result.get("error"):
