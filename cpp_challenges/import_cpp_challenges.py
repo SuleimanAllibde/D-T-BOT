@@ -17,17 +17,11 @@ from database import get_session, ChallengeSetting, Challenge, \
     ChallengeStarterCode, ChallengeExample, ChallengeTestCase
 from config import GUILD_ID
 
-CXX_STARTER = """#include <iostream>
-#include <string>
+CXX_STARTER = """#include <bits/stdc++.h>
 using namespace std;
 
 int main() {
-    // Read the input from stdin and print the result to stdout
-    string line;
-    while (getline(cin, line)) {
-        cout << line << endl;
-    }
-    return 0;
+    
 }
 """
 

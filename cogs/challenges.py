@@ -67,7 +67,7 @@ def build_master_embed(settings: ChallengeSetting, counts: dict, bot):
     except ValueError:
         color = 0x5865F2
     embed = discord.Embed(
-        title="⚡ Programming Challenges",
+        title="⚡ Programming Challenges (C++ only)",
         description=(
             "Pick a **difficulty** below and you'll be given a **random challenge** to solve.\n\n"
             "Solve it to earn **XP** and **coins** and climb the leaderboard! 🏆"

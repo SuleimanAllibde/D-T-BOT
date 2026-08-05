@@ -17,7 +17,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from database import get_session, Challenge
+from database import get_session, Challenge, ChallengeStarterCode
 from import_cpp_challenges import SPECS, CXX_STARTER
 
 # key -> (Arabic title, Arabic task description)
@@ -333,6 +333,15 @@ def main():
             cases = [(s["inp"], s["out"])] + list(s.get("extra", []))
             ch.title = title
             ch.description = build_description(desc, CXX_STARTER, cases)
+            starter = (
+                sess.query(ChallengeStarterCode)
+                .filter_by(challenge_id=ch.id, language="C++")
+                .first()
+            )
+            if starter:
+                starter.code = CXX_STARTER
+            else:
+                sess.add(ChallengeStarterCode(challenge_id=ch.id, language="C++", code=CXX_STARTER))
             n += 1
         sess.commit()
         print(f"Updated {n} challenges")
