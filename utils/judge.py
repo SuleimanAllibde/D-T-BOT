@@ -1,8 +1,26 @@
 import os
+import re
 
 import requests
 
-PISTON_API_URL = os.getenv("PISTON_URL", "https://emkc.org/api/v2/piston").rstrip("/")
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def _clean(text):
+    return _ANSI_RE.sub("", text or "")
+
+PISTON_API_URL = os.getenv("PISTON_URL", "").rstrip("/")
+
+# Free fallback execution engine (Compiler Explorer) used when PISTON_URL is
+# not configured. Maps bot language -> (compiler id, input filename, is_compiled).
+GODBOLT_URL = os.getenv("GODBOLT_URL", "https://godbolt.org").rstrip("/")
+GODBOLT_COMPILERS = {
+    "C++": ("g132", "main.cpp", True),
+    "Java": ("java1402", "Main.java", True),
+    "C#": ("dotnet80csharpmono", "Program.cs", True),
+    "Go": ("gccgo142", "main.go", True),
+    "Rust": ("r1900", "main.rs", True),
+}
 
 LANGUAGE_MAP = {
     "C++": "c++",
@@ -51,6 +69,9 @@ def _resolve_version(lang):
 
 
 def run_code(language, code, stdin, time_limit=2, memory_limit=256, max_code_size=100000):
+    if not PISTON_API_URL:
+        return run_code_godbolt(language, code, stdin, time_limit, memory_limit, max_code_size)
+
     lang = LANGUAGE_MAP.get(language)
     if not lang:
         return {"ok": False, "kind": "compile", "error": f"Unsupported language: {language}"}
@@ -101,6 +122,79 @@ def run_code(language, code, stdin, time_limit=2, memory_limit=256, max_code_siz
         return {"ok": False, "kind": "runtime", "error": f"Runtime error (exit {run.get('code')})", "stderr": (run.get("stderr") or "")[:2000]}
 
     return {"ok": True, "output": run.get("stdout", ""), "stderr": run.get("stderr", "")[:2000]}
+
+
+def _ce_text(chunks):
+    return "".join(c.get("text", "") for c in chunks or [])
+
+
+def run_code_godbolt(language, code, stdin, time_limit=2, memory_limit=256, max_code_size=100000):
+    entry = GODBOLT_COMPILERS.get(language)
+    if not entry:
+        return {
+            "ok": False,
+            "kind": "compile",
+            "error": (
+                f"Language '{language}' needs a Piston instance (set PISTON_URL). "
+                f"The free engine covers: {', '.join(sorted(GODBOLT_COMPILERS))}."
+            ),
+        }
+    if max_code_size and len(code.encode("utf-8")) > max_code_size:
+        return {"ok": False, "kind": "compile", "error": "Code exceeds maximum allowed size."}
+
+    compiler, filename, is_compiled = entry
+    body = {
+        "source": code,
+        "inputFilename": filename,
+        "options": {
+            "userArguments": "",
+            "executeParameters": {
+                "args": [],
+                "stdin": stdin or "",
+                "compilerOutputBinary": is_compiled,
+            },
+            "filters": {"execute": True},
+        },
+    }
+
+    try:
+        r = requests.post(
+            f"{GODBOLT_URL}/api/compiler/{compiler}/compile",
+            json=body,
+            headers={"Accept": "application/json"},
+            timeout=45,
+        )
+    except Exception as e:
+        return {"ok": False, "kind": "runtime", "error": f"Execution engine unreachable: {e}"}
+
+    if not r.ok:
+        return {"ok": False, "kind": "runtime", "error": f"Execution engine error (HTTP {r.status_code}): {r.text[:300]}"}
+
+    data = r.json()
+    compile_err = _clean(_ce_text(data.get("stderr")))
+
+    # Compilation failed: no execution result and the engine reports an error.
+    if not data.get("execResult"):
+        if data.get("code") not in (None, 0) or "error:" in compile_err.lower():
+            return {"ok": False, "kind": "compile", "error": compile_err[:2000] or "Compilation error"}
+        return {"ok": False, "kind": "runtime", "error": "Execution failed", "stderr": compile_err[:2000]}
+
+    er = data.get("execResult") or {}
+    if er.get("code") == 143 or "processing time exceeded" in _clean(_ce_text(er.get("stderr"))).lower():
+        return {"ok": False, "kind": "timeout", "error": "Time limit exceeded", "stderr": _clean(_ce_text(er.get("stderr")))[:2000]}
+    if er.get("code") not in (None, 0):
+        return {
+            "ok": False,
+            "kind": "runtime",
+            "error": f"Runtime error (exit {er.get('code')})",
+            "stderr": _clean(_ce_text(er.get("stderr")))[:2000],
+        }
+
+    return {
+        "ok": True,
+        "output": _ce_text(er.get("stdout")),
+        "stderr": _clean(_ce_text(er.get("stderr")))[:2000],
+    }
 
 
 def normalize_output(text, ignore_trailing_spaces, ignore_empty_lines, case_sensitive):
