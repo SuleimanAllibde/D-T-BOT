@@ -142,12 +142,13 @@ def _run_challenges_bot(bot: ChallengesBot):
         bot.run(CHALLENGES_BOT_TOKEN)
     except discord.PrivilegedIntentsRequired:
         challenges_bot_status["status"] = "error"
-        challenges_bot_status["error"] = "Privileged intents not enabled in the Developer Portal (need SERVER MEMBERS INTENT / MESSAGE CONTENT INTENT)."
-        print("\n[ChallengesBot] ❌ FAILED to login — privileged intents not enabled for this bot app.")
+        challenges_bot_status["error"] = "SERVER MEMBERS INTENT is not enabled for this bot in the Developer Portal."
+        print("\n[ChallengesBot] ❌ FAILED to login — the app is missing the SERVER MEMBERS INTENT.")
         print("[ChallengesBot]    1. Open https://discord.com/developers/applications")
-        print("[ChallengesBot]    2. Select the CHALLENGES bot application -> Bot tab")
-        print("[ChallengesBot]    3. Enable SERVER MEMBERS INTENT (and MESSAGE CONTENT INTENT)")
-        print("[ChallengesBot]    4. Save, then invite the bot to the server with this link:")
+        print("[ChallengesBot]    2. Select the CHALLENGES bot application -> Bot tab (Privileged Gateway Intents)")
+        print("[ChallengesBot]    3. Turn ON  SERVER MEMBERS INTENT  (MESSAGE CONTENT is NOT required for this bot)")
+        print("[ChallengesBot]    4. Save, then restart the service on Render")
+        print("[ChallengesBot]    Invite link if not added to the server yet:")
         print(f"[ChallengesBot]       {get_invite_url(CHALLENGES_BOT_TOKEN)}")
     except discord.LoginFailure:
         challenges_bot_status["status"] = "error"
