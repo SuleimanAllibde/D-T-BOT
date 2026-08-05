@@ -644,6 +644,16 @@ function showToast(msg, type) {
                 <div style="font-size:12px;color:var(--text-muted);padding-top:10px">Requires the separate challenges bot (<code>CHALLENGES_BOT_TOKEN</code>).</div>
             </div>
         </div>
+        <div class="form-row" style="align-items:center;margin-top:16px;background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:12px 16px">
+            <div style="display:flex;align-items:center;gap:10px;flex:1">
+                <span id="chBotStatusDot" style="width:12px;height:12px;border-radius:50%;background:#888"></span>
+                <div>
+                    <div style="font-weight:600">Challenges bot status</div>
+                    <div id="chBotStatusText" style="font-size:13px;color:var(--text-muted)">Loading...</div>
+                </div>
+            </div>
+            <button class="btn btn-sm" onclick="loadChallengesBotStatus()">🔄 Refresh</button>
+        </div>
     </div>
 
     <div class="card">
@@ -1674,6 +1684,7 @@ async function loadChallengeSettings() {
             document.getElementById('chXpEnabled').checked = s.xp_enabled;
         }
     } catch(e) {}
+    loadChallengesBotStatus();
     try {
         const r = await fetch('/api/guild/channels');
         const chs = await r.json();
@@ -1735,6 +1746,28 @@ async function sendChallengePanel() {
         else showToast('❌ ' + (d.error || 'Failed to send panel'), 'error');
     } catch(e) {
         showToast('❌ Network error', 'error');
+    }
+}
+
+async function loadChallengesBotStatus() {
+    const dot = document.getElementById('chBotStatusDot');
+    const txt = document.getElementById('chBotStatusText');
+    if (!dot || !txt) return;
+    try {
+        const r = await fetch('/api/challenges/bot-status');
+        const s = await r.json();
+        if (!r.ok) { txt.textContent = 'Could not load status'; return; }
+        const map = {
+            'online': ['#3ba55d', '🟢 Online — ' + (s.user || '')],
+            'starting': ['#faa61a', '🟡 Starting... (if it stays here, check Render logs)'],
+            'error': ['#ed4245', '🔴 Error: ' + (s.error || 'unknown')],
+            'not_configured': ['#888', '⚪ Not configured — set CHALLENGES_BOT_TOKEN in Render env vars, then restart'],
+        };
+        const [color, text] = map[s.status] || ['#888', 'Unknown status'];
+        dot.style.background = color;
+        txt.textContent = text;
+    } catch(e) {
+        txt.textContent = 'Could not load status';
     }
 }
 

@@ -10,6 +10,12 @@ from database import get_session, ChallengeSetting
 from cogs.challenges import build_leaderboard_embed, register_persistent_views
 
 challenges_bot: "ChallengesBot | None" = None
+challenges_bot_status = {
+    "status": "not_configured",
+    "error": "",
+    "ready": False,
+    "user": "",
+}
 
 LEADERBOARD_REFRESH_SECONDS = 60
 
@@ -63,6 +69,10 @@ class ChallengesBot(commands.Bot):
 
     async def on_ready(self):
         self.loop = asyncio.get_running_loop()
+        challenges_bot_status["status"] = "online"
+        challenges_bot_status["ready"] = True
+        challenges_bot_status["error"] = ""
+        challenges_bot_status["user"] = f"{self.user} (ID: {self.user.id})"
         print(f"[ChallengesBot] Logged in as {self.user} (ID: {self.user.id})")
         if not self.bg_task:
             self.bg_task = asyncio.ensure_future(self._leaderboard_loop())
@@ -131,6 +141,8 @@ def _run_challenges_bot(bot: ChallengesBot):
     try:
         bot.run(CHALLENGES_BOT_TOKEN)
     except discord.PrivilegedIntentsRequired:
+        challenges_bot_status["status"] = "error"
+        challenges_bot_status["error"] = "Privileged intents not enabled in the Developer Portal (need SERVER MEMBERS INTENT / MESSAGE CONTENT INTENT)."
         print("\n[ChallengesBot] ❌ FAILED to login — privileged intents not enabled for this bot app.")
         print("[ChallengesBot]    1. Open https://discord.com/developers/applications")
         print("[ChallengesBot]    2. Select the CHALLENGES bot application -> Bot tab")
@@ -138,11 +150,17 @@ def _run_challenges_bot(bot: ChallengesBot):
         print("[ChallengesBot]    4. Save, then invite the bot to the server with this link:")
         print(f"[ChallengesBot]       {get_invite_url(CHALLENGES_BOT_TOKEN)}")
     except discord.LoginFailure:
+        challenges_bot_status["status"] = "error"
+        challenges_bot_status["error"] = "Invalid CHALLENGES_BOT_TOKEN."
         print("\n[ChallengesBot] ❌ FAILED to login — CHALLENGES_BOT_TOKEN is invalid.")
         print("[ChallengesBot]    Copy the exact token from the Discord Developer Portal (Bot -> Reset Token).")
     except discord.HTTPException as e:
+        challenges_bot_status["status"] = "error"
+        challenges_bot_status["error"] = f"Discord API error: {e}"
         print(f"\n[ChallengesBot] ❌ FAILED to connect — Discord API error: {e}")
     except Exception as e:
+        challenges_bot_status["status"] = "error"
+        challenges_bot_status["error"] = f"{e}"
         print(f"\n[ChallengesBot] ❌ FAILED to start: {e}")
         traceback.print_exc()
 
@@ -150,11 +168,15 @@ def _run_challenges_bot(bot: ChallengesBot):
 def start_challenges_bot():
     global challenges_bot
     if not CHALLENGES_BOT_TOKEN:
+        challenges_bot_status["status"] = "not_configured"
+        challenges_bot_status["error"] = "CHALLENGES_BOT_TOKEN is empty — set it in the dashboard env vars."
         return None
     if challenges_bot is not None:
         return challenges_bot
     bot = ChallengesBot()
     challenges_bot = bot
+    challenges_bot_status["status"] = "starting"
+    challenges_bot_status["error"] = ""
     thread = threading.Thread(target=_run_challenges_bot, args=(bot,), daemon=True)
     thread.start()
     print("[ChallengesBot] Starting separate challenges bot...")
@@ -165,6 +187,10 @@ def start_challenges_bot():
 
 def get_challenges_bot():
     return challenges_bot if challenges_bot and challenges_bot.is_ready() else None
+
+
+def get_challenges_bot_status():
+    return dict(challenges_bot_status)
 
 
 def test_token(token: str):

@@ -19,7 +19,7 @@ from database import (
     UserChallengeProgress, UserXP, ChallengeAchievement,
 )
 from voice_bots import get_voice_bot_list, get_voice_bot_user_id, _save_setting, voice_bots
-from challenges_bot import get_challenges_bot
+from challenges_bot import get_challenges_bot, get_challenges_bot_status
 
 load_dotenv()
 
@@ -372,6 +372,12 @@ def api_challenge_settings():
         })
     finally:
         sess.close()
+
+
+@app.route("/api/challenges/bot-status")
+@login_required
+def api_challenge_bot_status():
+    return jsonify(get_challenges_bot_status())
 
 
 @app.route("/api/challenges/send-panel", methods=["POST"])
