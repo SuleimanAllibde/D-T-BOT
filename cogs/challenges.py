@@ -76,14 +76,6 @@ def build_master_embed(settings: ChallengeSetting, counts: dict, bot):
     )
     if settings.thumbnail:
         embed.set_thumbnail(url=settings.thumbnail)
-    for d in DIFFICULTIES:
-        n = counts.get(d, 0)
-        icon = DIFF_ICONS.get(d, "")
-        embed.add_field(
-            name=f"{icon} {d}",
-            value=f"{n} challenge{'s' if n != 1 else ''}" if n else "None yet",
-            inline=True,
-        )
     embed.set_footer(text=settings.footer or "D&T Programming Challenges")
     if bot and bot.user:
         embed.set_author(name="Programming Challenges", icon_url=bot.user.display_avatar.url)
@@ -196,21 +188,12 @@ class ChallengeSessionView(discord.ui.View):
         self.challenge = challenge
         self.languages = languages
         self.user_id = user_id
-        self.selected_language = languages[0] if languages else "Python"
+        self.selected_language = languages[0] if languages else "C++"
         self.start_time = time.time()
-
-        options = [discord.SelectOption(label=lang, value=lang) for lang in languages]
-        select = discord.ui.Select(placeholder="Select language", options=options, custom_id=f"dt_chal_lang:{challenge_id}")
-        select.callback = self._on_language
-        self.add_item(select)
 
         button = discord.ui.Button(label="Submit Code", style=discord.ButtonStyle.success, emoji="📤", custom_id=f"dt_chal_submit:{challenge_id}")
         button.callback = self._on_submit
         self.add_item(button)
-
-    async def _on_language(self, interaction: discord.Interaction):
-        self.selected_language = interaction.data["values"][0]
-        await interaction.response.defer(ephemeral=True)
 
     async def _on_submit(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
