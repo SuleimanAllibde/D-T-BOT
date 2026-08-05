@@ -19,6 +19,7 @@ from database import (
     UserChallengeProgress, UserXP, ChallengeAchievement,
 )
 from voice_bots import get_voice_bot_list, get_voice_bot_user_id, _save_setting, voice_bots
+from challenges_bot import get_challenges_bot
 
 load_dotenv()
 
@@ -352,6 +353,11 @@ def api_challenge_settings():
             s.footer = request.form.get("footer") or "D&T Programming Challenges"
             s.leaderboard_enabled = request.form.get("leaderboard_enabled") == "on"
             s.xp_enabled = request.form.get("xp_enabled") == "on"
+            lb_ch = request.form.get("leaderboard_channel_id", "").strip()
+            new_lb = int(lb_ch) if lb_ch else None
+            if new_lb != s.leaderboard_channel_id:
+                s.leaderboard_channel_id = new_lb
+                s.leaderboard_message_id = None
             sess.commit()
             return jsonify({"ok": True})
         return jsonify({
@@ -362,6 +368,7 @@ def api_challenge_settings():
             "footer": s.footer,
             "leaderboard_enabled": bool(s.leaderboard_enabled),
             "xp_enabled": bool(s.xp_enabled),
+            "leaderboard_channel_id": str(s.leaderboard_channel_id) if s.leaderboard_channel_id else None,
         })
     finally:
         sess.close()
@@ -370,7 +377,7 @@ def api_challenge_settings():
 @app.route("/api/challenges/send-panel", methods=["POST"])
 @login_required
 def api_challenge_send_panel():
-    bot = bot_state.get("bot")
+    bot = get_challenges_bot() or bot_state.get("bot")
     if not bot:
         return jsonify({"error": "Bot is offline — start it with `python main.py`"}), 503
     if not getattr(bot, "loop", None):
@@ -387,14 +394,21 @@ def api_challenge_send_panel():
     finally:
         sess.close()
 
+    target = bot
+    if not target.get_cog("Challenges"):
+        other = bot_state.get("bot")
+        if other and other is not target and other.get_cog("Challenges"):
+            target = other
+    if not target.get_cog("Challenges"):
+        return jsonify({"error": "Challenges cog not loaded"}), 500
+    if not getattr(target, "loop", None):
+        return jsonify({"error": "Bot is still connecting — try again in a moment"}), 503
+
     async def _do():
-        cog = bot.get_cog("Challenges")
-        if not cog:
-            return {"error": "Challenges cog not loaded"}
-        return await cog.send_panels(channel_id)
+        return await target.get_cog("Challenges").send_panels(channel_id)
 
     try:
-        future = asyncio.run_coroutine_threadsafe(_do(), bot.loop)
+        future = asyncio.run_coroutine_threadsafe(_do(), target.loop)
         result = future.result(timeout=60)
     except concurrent_futures.TimeoutError:
         return jsonify({"error": "Timed out sending the panel — try again"}), 500

@@ -7,6 +7,7 @@ from dashboard.app import run_dashboard, set_bot
 from config import BOT_TOKEN
 from database import init_db
 from voice_bots import start_voice_bots
+from challenges_bot import start_challenges_bot
 
 
 def start_dashboard():
@@ -20,6 +21,7 @@ def main():
 
     init_db()
     start_voice_bots()
+    start_challenges_bot()
 
     bot = Bot()
     set_bot(bot)

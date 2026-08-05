@@ -152,6 +152,8 @@ class ChallengeSetting(Base):
     footer = Column(Text, default="D&T Programming Challenges")
     leaderboard_enabled = Column(Boolean, default=True)
     xp_enabled = Column(Boolean, default=True)
+    leaderboard_channel_id = Column(BigInteger, nullable=True)
+    leaderboard_message_id = Column(BigInteger, nullable=True)
 
 
 class Challenge(Base):
@@ -280,6 +282,8 @@ def _migrate_postgres():
         ("guild_settings", "avatar_size", "INTEGER DEFAULT 128"),
         ("guild_settings", "name_x", "INTEGER DEFAULT 248"),
         ("guild_settings", "name_y", "INTEGER DEFAULT 140"),
+        ("challenge_settings", "leaderboard_channel_id", "BIGINT"),
+        ("challenge_settings", "leaderboard_message_id", "BIGINT"),
     ]
     with engine.connect() as conn:
         for table, col, typ in columns_to_add:
@@ -321,6 +325,15 @@ def _migrate_legacy():
         for col, typ in legacy:
             if col not in existing:
                 cursor.execute(f"ALTER TABLE guild_settings ADD COLUMN {col} {typ}")
+        cursor.execute("PRAGMA table_info(challenge_settings)")
+        existing = {row[1] for row in cursor.fetchall()}
+        challenge_legacy = [
+            ("leaderboard_channel_id", "BIGINT"),
+            ("leaderboard_message_id", "BIGINT"),
+        ]
+        for col, typ in challenge_legacy:
+            if col not in existing:
+                cursor.execute(f"ALTER TABLE challenge_settings ADD COLUMN {col} {typ}")
         conn.commit()
         conn.close()
     except Exception:

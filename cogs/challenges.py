@@ -115,25 +115,22 @@ def _get_challenge_languages(sess, challenge: Challenge) -> list:
     return LANGUAGES
 
 
-class GlobalLeaderboardButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(label="View Leaderboard", style=discord.ButtonStyle.secondary, emoji="🏆", custom_id="dt_chal_lb_global")
-
-    async def callback(self, interaction: discord.Interaction):
-        sess = get_session()
-        try:
-            rows = sess.query(UserXP).filter_by(guild_id=interaction.guild_id).order_by(UserXP.xp.desc()).limit(10).all()
-            lines = []
-            medals = ["🥇", "🥈", "🥉"]
-            for i, row in enumerate(rows):
-                member = interaction.guild.get_member(row.user_id) if interaction.guild else None
-                name = member.display_name if member else f"`{row.user_id}`"
-                medal = medals[i] if i < 3 else f"`#{i + 1}`"
-                lines.append(f"{medal} **{name}** — **{row.xp} XP** • {row.challenges_solved} solved")
-            embed = primary("🏆 Challenge Leaderboard", "\n".join(lines) if lines else "No solvers yet — be the first!", footer="D&T Programming Challenges")
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-        finally:
-            sess.close()
+def build_leaderboard_embed(guild, guild_id: int):
+    sess = get_session()
+    try:
+        rows = sess.query(UserXP).filter_by(guild_id=guild_id).order_by(UserXP.xp.desc()).limit(10).all()
+        lines = []
+        medals = ["🥇", "🥈", "🥉"]
+        for i, row in enumerate(rows):
+            member = guild.get_member(row.user_id) if guild else None
+            name = member.display_name if member else f"`{row.user_id}`"
+            medal = medals[i] if i < 3 else f"`#{i + 1}`"
+            lines.append(f"{medal} **{name}** — **{row.xp} XP** • 🪙 {row.coins} • {row.challenges_solved} solved")
+        embed = primary("🏆 Challenge Leaderboard", "\n".join(lines) if lines else "No solvers yet — be the first!", footer="D&T Programming Challenges")
+        embed.timestamp = datetime.utcnow()
+        return embed
+    finally:
+        sess.close()
 
 
 class DifficultyButton(discord.ui.Button):
@@ -154,13 +151,11 @@ class DifficultyButton(discord.ui.Button):
 class ChallengeMasterView(discord.ui.View):
     """Persistent panel: pick a difficulty -> get a random challenge."""
 
-    def __init__(self, difficulties: list, bot=None, show_leaderboard: bool = True):
+    def __init__(self, difficulties: list, bot=None):
         super().__init__(timeout=None)
         self.bot = bot
         for d in difficulties:
             self.add_item(DifficultyButton(d))
-        if show_leaderboard:
-            self.add_item(GlobalLeaderboardButton())
 
     async def _on_difficulty(self, interaction: discord.Interaction, difficulty: str):
         sess = get_session()
@@ -398,7 +393,7 @@ def _clip(text, n=1000):
 
 
 def register_persistent_views(bot: commands.Bot):
-    bot.add_view(ChallengeMasterView(DIFFICULTIES, bot=bot, show_leaderboard=True))
+    bot.add_view(ChallengeMasterView(DIFFICULTIES, bot=bot))
 
 
 class Challenges(commands.Cog):
@@ -433,7 +428,7 @@ class Challenges(commands.Cog):
             return {"error": "No enabled challenges found — create and enable at least one challenge first"}
 
         embed = build_master_embed(settings, counts, self.bot)
-        view = ChallengeMasterView(difficulties, bot=self.bot, show_leaderboard=settings.leaderboard_enabled)
+        view = ChallengeMasterView(difficulties, bot=self.bot)
         await channel.send(embed=embed, view=view)
         return {"success": True, "sent": len(difficulties)}
 

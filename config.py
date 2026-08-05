@@ -5,6 +5,7 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
 GUILD_ID = int(os.getenv("GUILD_ID", 0))
+CHALLENGES_BOT_TOKEN = os.getenv("CHALLENGES_BOT_TOKEN", "")
 VOICE_BOT_TOKENS = [
     t.strip()
     for t in os.getenv("VOICE_BOT_TOKENS", "").split(",")

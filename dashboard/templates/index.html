@@ -635,6 +635,15 @@ function showToast(msg, type) {
                 <button class="btn btn-success btn-block" onclick="sendChallengePanel()">📨 Send Panels</button>
             </div>
         </div>
+        <div class="form-row" style="align-items:flex-end;margin-top:16px">
+            <div class="form-group" style="flex:2">
+                <label>🏆 Leaderboard room (auto-posts &amp; refreshes every 60s)</label>
+                <select id="chLbChannel" class="form-input"><option value="">— Disabled —</option></select>
+            </div>
+            <div class="form-group" style="flex:1">
+                <div style="font-size:12px;color:var(--text-muted);padding-top:10px">Requires the separate challenges bot (<code>CHALLENGES_BOT_TOKEN</code>).</div>
+            </div>
+        </div>
     </div>
 
     <div class="card">
@@ -1672,10 +1681,15 @@ async function loadChallengeSettings() {
             const opts = chs.map(c => `<option value="${c.id}">#${escHtml(c.name)}</option>`).join('');
             const sel1 = document.getElementById('chChannel');
             const sel2 = document.getElementById('chSendChannel');
+            const sel3 = document.getElementById('chLbChannel');
             if (sel1) sel1.innerHTML = '<option value="">— Select channel —</option>' + opts;
             if (sel2) sel2.innerHTML = '<option value="">— Use configured channel —</option>' + opts;
+            if (sel3) sel3.innerHTML = '<option value="">— Disabled —</option>' + opts;
             if (_chSettings && _chSettings.channel_id) {
                 if (sel1) sel1.value = _chSettings.channel_id;
+            }
+            if (_chSettings && _chSettings.leaderboard_channel_id) {
+                if (sel3) sel3.value = _chSettings.leaderboard_channel_id;
             }
         }
     } catch(e) {}
@@ -1703,6 +1717,7 @@ async function saveChallengeSettings() {
     form.append('footer', document.getElementById('chFooter').value);
     form.append('leaderboard_enabled', document.getElementById('chLbEnabled').checked ? 'on' : '');
     form.append('xp_enabled', document.getElementById('chXpEnabled').checked ? 'on' : '');
+    form.append('leaderboard_channel_id', document.getElementById('chLbChannel').value);
     const r = await fetch('/api/challenges/settings', { method: 'POST', body: form });
     if (r.ok) { showToast('✅ Settings saved', 'success'); loadChallengeSettings(); }
     else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
