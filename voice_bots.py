@@ -76,9 +76,12 @@ class VoicePresenceBot(discord.Client):
 
             if target is None:
                 self.last_error = ""
-                if self.current_vc:
-                    await self.current_vc.disconnect()
-                    self.current_vc = None
+                for vc in list(self.voice_clients):
+                    try:
+                        await vc.disconnect()
+                    except Exception:
+                        pass
+                self.current_vc = None
                 return
 
             channel = self.get_channel(target)
@@ -93,23 +96,36 @@ class VoicePresenceBot(discord.Client):
                 print(f"[VoiceBot {self.bot_index}] {self.last_error}")
                 return
 
-            if self.current_vc and self.current_vc.channel.id == target:
-                self.last_error = ""
-                return
+            # Prefer the library's actual connection state over the cached one.
+            vc = None
+            for client in self.voice_clients:
+                if client.channel and client.channel.id == target:
+                    vc = client
+                    break
+            if vc is None:
+                for client in self.voice_clients:
+                    if client.guild and client.guild == channel.guild:
+                        vc = client
+                        break
 
-            if self.current_vc:
+            if vc:
+                self.current_vc = vc
+                if vc.channel and vc.channel.id == target:
+                    self.last_error = ""
+                    return
                 try:
-                    await self.current_vc.move_to(channel)
+                    await vc.move_to(channel)
                     self.last_error = ""
                     print(f"[VoiceBot {self.bot_index}] Moved to {channel.name}")
                     return
                 except Exception as e:
                     print(f"[VoiceBot {self.bot_index}] Move error: {e}")
                     try:
-                        await self.current_vc.disconnect()
+                        await vc.disconnect()
                     except Exception:
                         pass
                     self.current_vc = None
+                    vc = None
 
             self.current_vc = await channel.connect(timeout=30)
             self.last_error = ""
@@ -172,8 +188,11 @@ def get_voice_bot_list():
         channel_name = ""
         if bot and bot.is_ready():
             status = "online"
-            if bot.current_vc and bot.current_vc.channel:
-                channel_name = bot.current_vc.channel.name
+            vc = bot.current_vc
+            if vc is None and bot.voice_clients:
+                vc = bot.voice_clients[0]
+            if vc and vc.channel:
+                channel_name = vc.channel.name
         result.append({
             "bot_index": i,
             "label": row.label,
