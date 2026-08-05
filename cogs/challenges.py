@@ -15,6 +15,12 @@ LANGUAGES = ["C++", "Python", "JavaScript", "Java", "C#", "Go", "Rust"]
 DIFFICULTIES = ["Easy", "Medium", "Hard", "Expert"]
 
 DIFF_ICONS = {"Easy": "🟢", "Medium": "🟡", "Hard": "🔴", "Expert": "💀"}
+DIFF_STYLES = {
+    "Easy": discord.ButtonStyle.success,
+    "Medium": discord.ButtonStyle.primary,
+    "Hard": discord.ButtonStyle.danger,
+    "Expert": discord.ButtonStyle.danger,
+}
 
 
 def get_challenge_setting(guild_id: int) -> ChallengeSetting:
@@ -138,30 +144,33 @@ class GlobalLeaderboardButton(discord.ui.Button):
             sess.close()
 
 
+class DifficultyButton(discord.ui.Button):
+    def __init__(self, difficulty: str):
+        kwargs = {
+            "label": difficulty,
+            "style": DIFF_STYLES.get(difficulty, discord.ButtonStyle.primary),
+            "custom_id": f"dt_chal_diff:{difficulty.lower()}",
+        }
+        if DIFF_ICONS.get(difficulty):
+            kwargs["emoji"] = DIFF_ICONS[difficulty]
+        super().__init__(**kwargs)
+
+    async def callback(self, interaction: discord.Interaction):
+        await self.view._on_difficulty(interaction, self.label)
+
+
 class ChallengeMasterView(discord.ui.View):
     """Persistent panel: pick a difficulty -> get a random challenge."""
 
     def __init__(self, difficulties: list, bot=None, show_leaderboard: bool = True):
         super().__init__(timeout=None)
         self.bot = bot
-        options = []
         for d in difficulties:
-            kwargs = {"label": d, "value": d}
-            if DIFF_ICONS.get(d):
-                kwargs["emoji"] = DIFF_ICONS[d]
-            options.append(discord.SelectOption(**kwargs))
-        select = discord.ui.Select(
-            placeholder="Pick a difficulty for a random challenge...",
-            options=options,
-            custom_id="dt_chal_diff",
-        )
-        select.callback = self._on_difficulty
-        self.add_item(select)
+            self.add_item(DifficultyButton(d))
         if show_leaderboard:
             self.add_item(GlobalLeaderboardButton())
 
-    async def _on_difficulty(self, interaction: discord.Interaction):
-        difficulty = interaction.data["values"][0]
+    async def _on_difficulty(self, interaction: discord.Interaction, difficulty: str):
         sess = get_session()
         try:
             settings = sess.get(ChallengeSetting, interaction.guild_id)
