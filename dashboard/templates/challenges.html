@@ -1,0 +1,361 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- ===== CHALLENGES ===== -->
+<h1>Programming Challenges</h1>
+
+<div class="card">
+    <h2><i class="fa-solid fa-gear"></i> General Settings</h2>
+    <div class="form-row">
+        <div class="form-group" style="flex:0.8">
+            <label>Enable / Disable</label>
+            <div class="toggle-row"><span>Programming Challenges</span>
+                <label class="switch"><input type="checkbox" id="chEnabled"><span class="slider"></span></label>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Discord Channel</label>
+            <select id="chChannel" class="form-input"><option value="">— Select channel —</option></select>
+        </div>
+        <div class="form-group">
+            <label>Embed Color</label>
+            <input type="color" id="chColor" value="#5865F2" style="width:100%;height:42px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;cursor:pointer">
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Default Thumbnail (URL)</label>
+            <input type="text" id="chThumb" class="form-input" placeholder="https://...">
+        </div>
+        <div class="form-group">
+            <label>Default Footer</label>
+            <input type="text" id="chFooter" class="form-input" placeholder="D&T Programming Challenges">
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group" style="flex:1">
+            <label>Leaderboard</label>
+            <div class="toggle-row"><span>Enable Leaderboard</span>
+                <label class="switch"><input type="checkbox" id="chLbEnabled"><span class="slider"></span></label>
+            </div>
+        </div>
+        <div class="form-group" style="flex:1">
+            <label>XP System</label>
+            <div class="toggle-row"><span>Enable XP System</span>
+                <label class="switch"><input type="checkbox" id="chXpEnabled"><span class="slider"></span></label>
+            </div>
+        </div>
+        <div class="form-group" style="flex:1.5; justify-content:flex-end; display:flex; align-items:flex-end;">
+            <button class="btn btn-primary" onclick="saveChallengeSettings()">💾 Save Settings</button>
+        </div>
+    </div>
+    <div class="form-row" style="align-items:flex-end">
+        <div class="form-group" style="flex:2">
+            <label>Send challenge panels to channel</label>
+            <select id="chSendChannel" class="form-input"><option value="">— Use configured channel —</option></select>
+        </div>
+        <div class="form-group" style="flex:1">
+            <button class="btn btn-success btn-block" onclick="sendChallengePanel()">📨 Send Panels</button>
+        </div>
+    </div>
+    <div class="form-row" style="align-items:flex-end;margin-top:16px">
+        <div class="form-group" style="flex:2">
+            <label>🏆 Leaderboard room (auto-posts &amp; refreshes every 60s)</label>
+            <select id="chLbChannel" class="form-input"><option value="">— Disabled —</option></select>
+        </div>
+        <div class="form-group" style="flex:1">
+            <div style="font-size:12px;color:var(--text-muted);padding-top:10px">Requires the separate challenges bot (<code>CHALLENGES_BOT_TOKEN</code>).</div>
+        </div>
+    </div>
+    <div class="form-row" style="align-items:center;margin-top:16px;background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:12px 16px">
+        <div style="display:flex;align-items:center;gap:10px;flex:1">
+            <span id="chBotStatusDot" style="width:12px;height:12px;border-radius:50%;background:#888"></span>
+            <div>
+                <div style="font-weight:600">Challenges bot status</div>
+                <div id="chBotStatusText" style="font-size:13px;color:var(--text-muted)">Loading...</div>
+            </div>
+        </div>
+        <button class="btn btn-sm" onclick="loadChallengesBotStatus()">🔄 Refresh</button>
+    </div>
+</div>
+
+<div class="card">
+    <h2><i class="fa-solid fa-list"></i> Challenge List</h2>
+    <div class="form-row" style="align-items:flex-end;margin-bottom:16px">
+        <div class="form-group" style="flex:2">
+            <label>Search</label>
+            <input type="text" id="chSearch" class="form-input" placeholder="Search by title or ID..." oninput="chReloadList()">
+        </div>
+        <div class="form-group">
+            <label>Language</label>
+            <select id="chFilterLang" class="form-input" onchange="chReloadList()"><option value="">All</option></select>
+        </div>
+        <div class="form-group">
+            <label>Difficulty</label>
+            <select id="chFilterDiff" class="form-input" onchange="chReloadList()">
+                <option value="">All</option><option>Easy</option><option>Medium</option><option>Hard</option><option>Expert</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Status</label>
+            <select id="chFilterStatus" class="form-input" onchange="chReloadList()">
+                <option value="">All</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Sort</label>
+            <select id="chFilterSort" class="form-input" onchange="chReloadList()">
+                <option value="">Default</option>
+                <option value="difficulty">Difficulty ↑</option>
+                <option value="difficulty_desc">Difficulty ↓</option>
+                <option value="language">Language</option>
+                <option value="newest">Newest</option>
+            </select>
+        </div>
+    </div>
+    <div style="overflow-x:auto">
+        <table class="data-table">
+            <thead><tr>
+                <th>ID</th><th>Title</th><th>Language</th><th>Difficulty</th><th>Category</th><th>XP</th><th>Status</th><th>Created</th><th style="text-align:right">Actions</th>
+            </tr></thead>
+            <tbody id="chListBody"><tr><td colspan="9" style="text-align:center;color:var(--text-muted)">Loading...</td></tr></tbody>
+        </table>
+    </div>
+    <div id="chPagination" class="ch-pagination" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;flex-wrap:wrap">
+        <span id="chPageInfo" style="color:var(--text-muted);font-size:13px"></span>
+        <div style="display:flex;gap:8px">
+            <button class="btn btn-sm" onclick="chSetPage(-1)" id="chPrevBtn">‹ Prev</button>
+            <button class="btn btn-sm" onclick="chSetPage(1)" id="chNextBtn">Next ›</button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h2><i class="fa-solid fa-trophy"></i> Leaderboard</h2>
+    <div id="chLeaderboardBody" style="color:var(--text-muted);font-size:14px">Loading...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const _chLangs = ['C++', 'Python', 'JavaScript', 'Java', 'C#', 'Go', 'Rust'];
+
+let _chSettings = null;
+let _chPage = 1;
+let _chTotalPages = 1;
+
+function chDiffClass(d) {
+    const m = { 'Easy': 'ch-diff-easy', 'Medium': 'ch-diff-medium', 'Hard': 'ch-diff-hard', 'Expert': 'ch-diff-expert' };
+    return m[d] || 'ch-diff-medium';
+}
+
+// ---- Settings ----
+
+async function loadChallengeSettings() {
+    try {
+        const r = await fetch('/api/challenges/settings');
+        const s = await r.json();
+        if (r.ok) {
+            _chSettings = s;
+            document.getElementById('chEnabled').checked = s.enabled;
+            document.getElementById('chColor').value = s.embed_color || '#5865F2';
+            document.getElementById('chThumb').value = s.thumbnail || '';
+            document.getElementById('chFooter').value = s.footer || '';
+            document.getElementById('chLbEnabled').checked = s.leaderboard_enabled;
+            document.getElementById('chXpEnabled').checked = s.xp_enabled;
+        }
+    } catch(e) {}
+    loadChallengesBotStatus();
+    try {
+        const r = await fetch('/api/guild/channels');
+        const chs = await r.json();
+        if (Array.isArray(chs)) {
+            const opts = chs.map(c => `<option value="${c.id}">#${escHtml(c.name)}</option>`).join('');
+            const sel1 = document.getElementById('chChannel');
+            const sel2 = document.getElementById('chSendChannel');
+            const sel3 = document.getElementById('chLbChannel');
+            if (sel1) sel1.innerHTML = '<option value="">— Select channel —</option>' + opts;
+            if (sel2) sel2.innerHTML = '<option value="">— Use configured channel —</option>' + opts;
+            if (sel3) sel3.innerHTML = '<option value="">— Disabled —</option>' + opts;
+            if (_chSettings && _chSettings.channel_id) {
+                if (sel1) sel1.value = _chSettings.channel_id;
+            }
+            if (_chSettings && _chSettings.leaderboard_channel_id) {
+                if (sel3) sel3.value = _chSettings.leaderboard_channel_id;
+            }
+        }
+    } catch(e) {}
+    populateLangFilter();
+}
+
+function populateLangFilter() {
+    const sel = document.getElementById('chFilterLang');
+    if (!sel || sel.options.length > 1) return;
+    sel.innerHTML = '<option value="">All</option>' + _chLangs.map(l => `<option>${l}</option>`).join('');
+}
+
+async function saveChallengeSettings() {
+    const form = new FormData();
+    form.append('enabled', document.getElementById('chEnabled').checked ? 'on' : '');
+    form.append('channel_id', document.getElementById('chChannel').value);
+    form.append('embed_color', document.getElementById('chColor').value);
+    form.append('thumbnail', document.getElementById('chThumb').value);
+    form.append('footer', document.getElementById('chFooter').value);
+    form.append('leaderboard_enabled', document.getElementById('chLbEnabled').checked ? 'on' : '');
+    form.append('xp_enabled', document.getElementById('chXpEnabled').checked ? 'on' : '');
+    form.append('leaderboard_channel_id', document.getElementById('chLbChannel').value);
+    const r = await fetch('/api/challenges/settings', { method: 'POST', body: form });
+    if (r.ok) { showToast('✅ Settings saved', 'success'); loadChallengeSettings(); }
+    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+}
+
+async function sendChallengePanel() {
+    const form = new FormData();
+    const ch = document.getElementById('chSendChannel').value || document.getElementById('chChannel').value;
+    if (ch) form.append('channel_id', ch);
+    showToast('📨 Sending panels...', '');
+    try {
+        const r = await fetch('/api/challenges/send-panel', { method: 'POST', body: form });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && d.success) showToast('✅ Panel sent', 'success');
+        else showToast('❌ ' + (d.error || 'Failed to send panel'), 'error');
+    } catch(e) {
+        showToast('❌ Network error', 'error');
+    }
+}
+
+async function loadChallengesBotStatus() {
+    const dot = document.getElementById('chBotStatusDot');
+    const txt = document.getElementById('chBotStatusText');
+    if (!dot || !txt) return;
+    try {
+        const r = await fetch('/api/challenges/bot-status');
+        const s = await r.json();
+        if (!r.ok) { txt.textContent = 'Could not load status'; return; }
+        const map = {
+            'online': ['#3ba55d', '🟢 Online — ' + (s.user || '')],
+            'starting': ['#faa61a', '🟡 Starting... (if it stays here, check Render logs)'],
+            'error': ['#ed4245', '🔴 Error: ' + (s.error || 'unknown')],
+            'not_configured': ['#888', '⚪ Not configured — set CHALLENGES_BOT_TOKEN in Render env vars, then restart'],
+        };
+        const [color, text] = map[s.status] || ['#888', 'Unknown status'];
+        dot.style.background = color;
+        txt.textContent = text;
+    } catch(e) {
+        txt.textContent = 'Could not load status';
+    }
+}
+
+// ---- List ----
+
+async function loadChallenges() {
+    const q = encodeURIComponent(document.getElementById('chSearch').value || '');
+    const lang = encodeURIComponent(document.getElementById('chFilterLang').value);
+    const diff = encodeURIComponent(document.getElementById('chFilterDiff').value);
+    const status = encodeURIComponent(document.getElementById('chFilterStatus').value);
+    const sort = encodeURIComponent(document.getElementById('chFilterSort').value);
+    const url = `/api/challenges?page=${_chPage}&search=${q}&language=${lang}&difficulty=${diff}&status=${status}&sort=${sort}`;
+    let data = { items: [], total: 0, page: 1, pages: 1 };
+    try {
+        const r = await fetch(url);
+        if (r.ok) data = await r.json();
+    } catch(e) {}
+    _chTotalPages = data.pages || 1;
+    const body = document.getElementById('chListBody');
+    if (!body) return;
+    if (!data.items.length) {
+        body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted)">No challenges found. Create your first one!</td></tr>';
+    } else {
+        body.innerHTML = data.items.map(c => `
+        <tr>
+            <td><span class="ch-key">${escHtml(c.challenge_key)}</span></td>
+            <td><strong>${escHtml(c.title)}</strong></td>
+            <td>${escHtml(c.language)}</td>
+            <td><span class="ch-diff ${chDiffClass(c.difficulty)}">${escHtml(c.difficulty)}</span></td>
+            <td>${escHtml(c.category)}</td>
+            <td>${c.xp_reward}</td>
+            <td><span class="ch-status ${c.enabled ? 'on' : 'off'}">${c.enabled ? 'Enabled' : 'Disabled'}</span></td>
+            <td>${c.created_at ? new Date(c.created_at).toLocaleDateString() : '—'}</td>
+            <td style="text-align:right;white-space:nowrap">
+                <button class="btn btn-sm" onclick="editChallenge(${c.id})">Edit</button>
+                <button class="btn btn-sm" onclick="previewChallenge(${c.id})">Discord</button>
+                <button class="btn btn-sm" onclick="duplicateChallenge(${c.id})">Copy</button>
+                <button class="btn btn-sm" onclick="toggleChallenge(${c.id}, ${c.enabled ? 'false' : 'true'})">${c.enabled ? 'Disable' : 'Enable'}</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteChallenge(${c.id})">Delete</button>
+            </td>
+        </tr>`).join('');
+    }
+    const info = document.getElementById('chPageInfo');
+    if (info) info.textContent = `Page ${data.page} of ${_chTotalPages} — ${data.total} challenges`;
+    const prev = document.getElementById('chPrevBtn');
+    const next = document.getElementById('chNextBtn');
+    if (prev) prev.disabled = _chPage <= 1;
+    if (next) next.disabled = _chPage >= _chTotalPages;
+}
+
+function chReloadList() { _chPage = 1; loadChallenges(); }
+function chSetPage(dir) {
+    _chPage = Math.max(1, Math.min(_chTotalPages, _chPage + dir));
+    loadChallenges();
+}
+
+function editChallenge(id) {
+    window.location.href = '/challenges/edit/' + id;
+}
+
+function previewChallenge(id) {
+    window.location.href = '/challenges/edit/' + id + '?preview=1';
+}
+
+async function duplicateChallenge(id) {
+    const r = await fetch(`/api/challenges/${id}/duplicate`, { method: 'POST' });
+    if (r.ok) { showToast('✅ Challenge duplicated', 'success'); loadChallenges(); }
+    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+}
+
+async function deleteChallenge(id) {
+    if (!confirm('Delete this challenge permanently?')) return;
+    const r = await fetch('/api/challenges/' + id, { method: 'DELETE' });
+    if (r.ok) { showToast('✅ Challenge deleted', 'success'); loadChallenges(); }
+    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+}
+
+async function toggleChallenge(id, enabled) {
+    const r = await fetch('/api/challenges/' + id, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled })
+    });
+    if (r.ok) { showToast(enabled ? '✅ Challenge enabled' : '✅ Challenge disabled', 'success'); loadChallenges(); }
+    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+}
+
+// ---- Leaderboard ----
+
+async function loadChallengeLeaderboard() {
+    const wrap = document.getElementById('chLeaderboardBody');
+    if (!wrap) return;
+    try {
+        const r = await fetch('/api/challenges/leaderboard');
+        const rows = await r.json();
+        if (!Array.isArray(rows) || !rows.length) {
+            wrap.innerHTML = '<p>No leaderboard data yet. Users earn XP by solving challenges.</p>';
+            return;
+        }
+        const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+        wrap.innerHTML = rows.map(x => `
+        <div class="lb-row">
+            <span class="lb-rank ${x.rank <= 3 ? 'lb-medal' : ''}">${medals[x.rank] || x.rank}</span>
+            <span class="lb-name">${escHtml(x.username)}</span>
+            <span class="lb-solved">${x.solved} solved</span>
+            <span class="lb-coins">🪙 ${x.coins}</span>
+            <span class="lb-xp">⚡ ${x.xp} XP</span>
+        </div>`).join('');
+    } catch(e) { wrap.innerHTML = '<p style="color:var(--text-muted)">Failed to load leaderboard.</p>'; }
+}
+
+// ---- Init ----
+loadChallengeSettings();
+loadChallenges();
+loadChallengeLeaderboard();
+</script>
+{% endblock %}

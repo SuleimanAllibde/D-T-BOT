@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- ===== SAVE BAR ===== -->
+<div id="saveBar" class="save-bar">
+    <div class="save-bar-inner">
+        <span id="saveStatus">✅ All changes saved</span>
+        <button class="btn btn-primary" onclick="saveAll()">💾 Save Now</button>
+    </div>
+</div>
+
+<!-- ===== TICKETS ===== -->
+<h1>Ticket System Manager</h1>
+<div class="card">
+    <div class="toggle-row">
+        <span>Enable Ticket System</span>
+        <label class="switch"><input type="checkbox" id="tktEnabled" data-setting="ticket_enabled"><span class="slider"></span></label>
+    </div>
+    <div class="form-group">
+        <label>Panel Title</label>
+        <input type="text" id="tktTitle" data-setting="ticket_panel_title" placeholder="🎫 Support Tickets">
+    </div>
+    <div class="form-group">
+        <label>Panel Description</label>
+        <textarea id="tktDesc" rows="2" data-setting="ticket_panel_desc" placeholder="Click the button below to open a ticket."></textarea>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Button Text</label>
+            <input type="text" id="tktBtn" data-setting="ticket_button_text" placeholder="Open Ticket">
+        </div>
+        <div class="form-group">
+            <label>Embed Color (Hex)</label>
+            <input type="text" id="tktColor" data-setting="ticket_embed_color" placeholder="#5865F2">
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Ticket Category</label>
+            <select id="tktCat" class="form-input" data-setting="ticket_category_id"></select>
+        </div>
+        <div class="form-group">
+            <label>Support Role</label>
+            <select id="tktRole" class="form-input" data-setting="ticket_support_role_id"></select>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Panel Channel &amp; Deployment</h2>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Panel Channel</label>
+            <select id="panelChannel" class="form-input"></select>
+        </div>
+    </div>
+    <button onclick="sendTicketPanel()" class="btn btn-primary">🚀 Send Panel to Channel</button>
+    <p style="color:var(--text-muted);font-size:13px;margin-top:8px;">This will send (or update) the ticket open button in the selected channel.</p>
+</div>
+
+<div class="card">
+    <h2>Active Tickets</h2>
+    <table class="data-table">
+        <thead><tr><th>Channel</th><th>User</th><th>Opened</th><th>Action</th></tr></thead>
+        <tbody id="ticketBody"></tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadTicketSettings() {
+    try {
+        const r = await fetch('/api/stats');
+        const s = await r.json();
+        await populateAllDropdowns(s);
+        document.getElementById('tktEnabled').checked = s.ticket_enabled;
+
+        const tktR = await fetch('/api/tickets/settings');
+        const tkt = await tktR.json();
+        document.getElementById('tktTitle').value = tkt.ticket_panel_title || '';
+        document.getElementById('tktDesc').value = tkt.ticket_panel_desc || '';
+        document.getElementById('tktBtn').value = tkt.ticket_button_text || '';
+        document.getElementById('tktColor').value = tkt.ticket_embed_color || '#5865F2';
+    } catch(e) {
+        console.error('loadTicketSettings error:', e);
+    }
+}
+
+async function loadTickets() {
+    try {
+        const r = await fetch('/api/tickets/active');
+        const data = await r.json();
+        const body = document.getElementById('ticketBody');
+        body.innerHTML = data.map(t =>
+            `<tr><td>#${escHtml(t.channel_name)}</td><td>${escHtml(t.user_name)}</td><td>${new Date(t.opened_at).toLocaleString()}</td><td><button class="btn btn-danger btn-sm" onclick="closeTicket(${t.channel_id})">Close</button></td></tr>`
+        ).join('');
+    } catch(e) {}
+}
+
+async function sendTicketPanel() {
+    if (!getSettingVal('tktEnabled')) { showToast('Enable the ticket system first', 'error'); return; }
+    const ch = document.getElementById('panelChannel').value;
+    if (!ch) { showToast('Select a channel', 'error'); return; }
+    const form = new FormData();
+    form.append('channel_id', ch);
+    const r = await fetch('/api/tickets/send-panel', { method: 'POST', body: form });
+    if (r.ok) showToast('✅ Ticket panel sent!', 'success');
+    else showToast('❌ Failed to send panel', 'error');
+}
+
+async function closeTicket(channelId) {
+    const r = await fetch('/api/tickets/close/' + channelId, { method: 'POST' });
+    if (r.ok) { showToast('✅ Ticket closed', 'success'); loadTickets(); }
+    else showToast('❌ Failed to close ticket', 'error');
+}
+
+async function saveAll() {
+    showSaving();
+    const tktForm = new FormData();
+    tktForm.append('ticket_enabled', getSettingVal('tktEnabled') ? 'on' : '');
+    tktForm.append('ticket_panel_title', getSettingVal('tktTitle') || '');
+    tktForm.append('ticket_panel_desc', getSettingVal('tktDesc') || '');
+    tktForm.append('ticket_button_text', getSettingVal('tktBtn') || '');
+    tktForm.append('ticket_embed_color', getSettingVal('tktColor') || '#5865F2');
+    tktForm.append('ticket_category_id', getSettingVal('tktCat') || '');
+    tktForm.append('ticket_support_role_id', getSettingVal('tktRole') || '');
+
+    try {
+        const r = await fetch('/api/tickets/settings', { method: 'POST', body: tktForm });
+        if (r.ok) showSaved();
+        else { showToast('❌ Some settings failed to save', 'error'); showSaved(); }
+    } catch(e) {
+        showToast('❌ Save failed: ' + e.message, 'error');
+        showSaved();
+    }
+}
+
+document.querySelectorAll('[data-setting]').forEach(el => {
+    el.addEventListener('change', triggerAutoSave);
+    el.addEventListener('input', triggerAutoSave);
+});
+
+// ---- Init ----
+loadTicketSettings();
+loadTickets();
+setInterval(loadTickets, 15000);
+
+let retryCount = 0;
+const retryInterval = setInterval(async () => {
+    retryCount++;
+    const panelSel = document.getElementById('panelChannel');
+    if (panelSel && panelSel.options.length > 1) {
+        clearInterval(retryInterval);
+        return;
+    }
+    if (retryCount >= 6) {
+        clearInterval(retryInterval);
+        return;
+    }
+    const r = await fetch('/api/stats').catch(() => null);
+    if (r && r.ok) {
+        const d = await r.json().catch(() => null);
+        if (d) await populateAllDropdowns(d);
+    }
+}, 5000);
+</script>
+{% endblock %}

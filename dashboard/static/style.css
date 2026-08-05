@@ -585,6 +585,39 @@ body {
 }
 .form-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
 textarea.form-input { resize: vertical; font-family: inherit; }
+select.form-input {
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23949ba4' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+}
+select.form-input option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+.channel-option { display: flex; align-items: center; gap: 8px; }
+.channel-hash { color: var(--text-muted); }
+.save-bar {
+    position: fixed;bottom: 0;left: 0;right: 0;z-index: 999;
+    background: var(--bg-secondary);border-top: 2px solid var(--accent);
+    padding: 12px 24px;box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    transform: translateY(100%);opacity: 0;
+}
+.save-bar.visible { transform: translateY(0);opacity: 1; }
+.save-bar-inner {
+    max-width: 900px;margin: 0 auto;
+    display: flex;align-items: center;justify-content: center;gap: 16px;
+    flex-wrap: wrap;
+}
+.save-bar-inner span { color: var(--text-primary);font-size: 14px; }
+.save-bar-inner .btn-primary {
+    background: #5865F2;color: #fff;border: none;padding: 8px 20px;border-radius: 8px;cursor: pointer;font-size: 14px;font-weight: 600;
+}
+.save-bar-inner .btn-primary:hover { background: #4752c4; }
 .ch-key {
     font-family: var(--font-mono, monospace);
     font-size: 12px;

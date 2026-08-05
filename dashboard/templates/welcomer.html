@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- ===== SAVE BAR ===== -->
+<div id="saveBar" class="save-bar">
+    <div class="save-bar-inner">
+        <span id="saveStatus">✅ All changes saved</span>
+        <button class="btn btn-primary" onclick="saveAll()">💾 Save Now</button>
+    </div>
+</div>
+
+<!-- ===== WELCOMER ===== -->
+<h1>Welcomer &amp; Leaver</h1>
+<div class="card">
+    <div class="toggle-row">
+        <span>Enable Welcome System</span>
+        <label class="switch"><input type="checkbox" id="welEnabled" data-setting="welcome_enabled"><span class="slider"></span></label>
+    </div>
+    <div class="form-group">
+        <label>Welcome Channel</label>
+        <select id="welChannel" class="form-input" data-setting="welcome_channel_id"></select>
+    </div>
+    <div class="form-group">
+        <label>Welcome Message <small>Use {user}, {server}, {member_count}, {username}, {display_name}</small></label>
+        <textarea id="welMessage" rows="3" data-setting="welcome_message" placeholder="Welcome {user} to **{server}**!"></textarea>
+    </div>
+</div>
+<div class="card" style="border:1px solid var(--border);">
+        <h2>🎨 Avatar Position</h2>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px;">
+            Drag the avatar to position it. Drag the <strong>↘</strong> handle to resize.
+        </p>
+        <div id="canvasWrapper" style="position:relative;width:100%;max-width:800px;border-radius:8px;overflow:hidden;border:2px solid var(--border);background:#202225;user-select:none;aspect-ratio:1296/864;">
+            <img id="canvasBg" src="/api/bg" alt="Background" style="display:block;width:100%;height:100%;pointer-events:none;object-fit:fill;">
+            <div id="canvasAvatar" style="position:absolute;cursor:move;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,0.5),0 0 12px rgba(0,0,0,0.4);pointer-events:auto;z-index:5;">
+                <div id="canvasAvatarInner" style="width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,#5865F2,#4752C4);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;font-family:sans-serif;">A</div>
+                <div id="resizeHandle" style="position:absolute;bottom:-8px;right:-8px;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid #5865F2;cursor:nwse-resize;box-shadow:0 0 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;color:#5865F2;z-index:6;">↘</div>
+            </div>
+        </div>
+        <div style="margin-top:10px;font-size:13px;color:var(--text-muted);">
+            X: <strong id="dispX">80</strong> &nbsp;|&nbsp;
+            Y: <strong id="dispY">86</strong> &nbsp;|&nbsp;
+            Size: <strong id="dispSize">128</strong>
+        </div>
+        <input type="hidden" id="welAvatarX" data-setting="avatar_x" value="80">
+        <input type="hidden" id="welAvatarY" data-setting="avatar_y" value="86">
+        <input type="hidden" id="welAvatarSize" data-setting="avatar_size" value="128">
+    </div>
+<div class="card">
+    <div class="toggle-row">
+        <span>Enable Leave System</span>
+        <label class="switch"><input type="checkbox" id="leaveEnabled" data-setting="leave_enabled"><span class="slider"></span></label>
+    </div>
+    <div class="form-group">
+        <label>Leave Channel</label>
+        <select id="leaveChannel" class="form-input" data-setting="leave_channel_id"></select>
+    </div>
+    <div class="form-group">
+        <label>Leave Message <small>Use {user}, {server}, {member_count}</small></label>
+        <textarea id="leaveMessage" rows="3" data-setting="leave_message" placeholder="{user} has left {server}."></textarea>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadWelcomer() {
+    try {
+        const r = await fetch('/api/stats');
+        const s = await r.json();
+        await populateAllDropdowns(s);
+        document.getElementById('welEnabled').checked = s.welcome_enabled;
+        document.getElementById('leaveEnabled').checked = s.leave_enabled;
+
+        const welR = await fetch('/api/welcomer');
+        const wel = await welR.json();
+        document.getElementById('welMessage').value = wel.welcome_message || '';
+        document.getElementById('leaveMessage').value = wel.leave_message || '';
+        document.getElementById('welAvatarX').value = wel.avatar_x || 80;
+        document.getElementById('welAvatarY').value = wel.avatar_y || 86;
+        document.getElementById('welAvatarSize').value = wel.avatar_size || 128;
+        updateCanvasPosition();
+    } catch(e) {
+        console.error('loadWelcomer error:', e);
+    }
+}
+
+// ---- Canvas (Avatar Position) ----
+
+function getCanvasScale() {
+    const wrapper = document.getElementById('canvasWrapper');
+    return wrapper ? wrapper.clientWidth / 1296 : 1;
+}
+
+function updateCanvasPosition() {
+    const x = parseInt(document.getElementById('welAvatarX').value) || 80;
+    const y = parseInt(document.getElementById('welAvatarY').value) || 86;
+    const size = parseInt(document.getElementById('welAvatarSize').value) || 128;
+    const scale = getCanvasScale();
+    const avatar = document.getElementById('canvasAvatar');
+    const handle = document.getElementById('resizeHandle');
+    avatar.style.left = (x * scale) + 'px';
+    avatar.style.top = (y * scale) + 'px';
+    avatar.style.width = (size * scale) + 'px';
+    avatar.style.height = (size * scale) + 'px';
+    document.getElementById('dispX').textContent = x;
+    document.getElementById('dispY').textContent = y;
+    document.getElementById('dispSize').textContent = size;
+}
+
+(function() {
+    const wrapper = document.getElementById('canvasWrapper');
+    const avatar = document.getElementById('canvasAvatar');
+    const handle = document.getElementById('resizeHandle');
+    if (!wrapper || !avatar || !handle) return;
+
+    let dragging = false, resizing = false, startX, startY, startAx, startAy, startW;
+
+    avatar.addEventListener('mousedown', function(e) {
+        if (e.target === handle) return;
+        dragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startAx = parseInt(document.getElementById('welAvatarX').value);
+        startAy = parseInt(document.getElementById('welAvatarY').value);
+        e.preventDefault();
+    });
+
+    handle.addEventListener('mousedown', function(e) {
+        resizing = true;
+        startX = e.clientX;
+        startW = parseInt(document.getElementById('welAvatarSize').value);
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        const scale = getCanvasScale();
+        if (dragging) {
+            const dx = (e.clientX - startX) / scale;
+            const dy = (e.clientY - startY) / scale;
+            const newX = Math.round(Math.max(0, Math.min(1296, startAx + dx)));
+            const newY = Math.round(Math.max(0, Math.min(864, startAy + dy)));
+            document.getElementById('welAvatarX').value = newX;
+            document.getElementById('welAvatarY').value = newY;
+            updateCanvasPosition();
+        }
+        if (resizing) {
+            const dx = (e.clientX - startX) / scale;
+            const newSize = Math.round(Math.max(32, Math.min(256, startW + dx)));
+            document.getElementById('welAvatarSize').value = newSize;
+            updateCanvasPosition();
+        }
+    });
+
+    document.addEventListener('mouseup', function() {
+        if (dragging || resizing) {
+            dragging = false;
+            resizing = false;
+            triggerAutoSave();
+        }
+    });
+})();
+
+// ---- Save ----
+
+async function saveAll() {
+    showSaving();
+    const welForm = new FormData();
+    welForm.append('welcome_enabled', getSettingVal('welEnabled') ? 'on' : '');
+    welForm.append('welcome_channel_id', getSettingVal('welChannel') || '');
+    welForm.append('welcome_message', getSettingVal('welMessage') || '');
+    welForm.append('leave_enabled', getSettingVal('leaveEnabled') ? 'on' : '');
+    welForm.append('leave_channel_id', getSettingVal('leaveChannel') || '');
+    welForm.append('leave_message', getSettingVal('leaveMessage') || '');
+    welForm.append('avatar_x', getSettingVal('welAvatarX') || '');
+    welForm.append('avatar_y', getSettingVal('welAvatarY') || '');
+    welForm.append('avatar_size', getSettingVal('welAvatarSize') || '');
+
+    try {
+        const r = await fetch('/api/welcomer', { method: 'POST', body: welForm });
+        if (r.ok) showSaved();
+        else { showToast('❌ Some settings failed to save', 'error'); showSaved(); }
+    } catch(e) {
+        showToast('❌ Save failed: ' + e.message, 'error');
+        showSaved();
+    }
+}
+
+document.querySelectorAll('[data-setting]').forEach(el => {
+    el.addEventListener('change', triggerAutoSave);
+    el.addEventListener('input', triggerAutoSave);
+});
+
+// ---- Init ----
+loadWelcomer();
+</script>
+{% endblock %}

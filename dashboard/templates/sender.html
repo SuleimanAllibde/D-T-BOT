@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- ===== SENDER ===== -->
+<h1>Message &amp; Embed Sender</h1>
+<div class="card">
+    <h2>Send a Message</h2>
+    <div class="form-group">
+        <label>Channel</label>
+        <select id="msgChannel" class="form-input"></select>
+    </div>
+    <div class="form-group">
+        <label>Message Content</label>
+        <textarea id="msgContent" rows="4" placeholder="Type your message here..."></textarea>
+    </div>
+    <div class="form-group">
+        <label>Attachment (image/file)</label>
+        <input type="file" id="msgFile" accept="image/*,.pdf,.zip,.txt">
+    </div>
+    <button onclick="sendMessage()" class="btn btn-primary">Send Message</button>
+</div>
+<div class="card">
+    <h2>Send an Embed</h2>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Channel</label>
+            <select id="embedChannel" class="form-input"></select>
+        </div>
+        <div class="form-group">
+            <label>Color (Hex)</label>
+            <input type="text" id="embedColor" value="#5865F2" placeholder="#5865F2">
+        </div>
+    </div>
+    <div class="form-group">
+        <label>Title</label>
+        <input type="text" id="embedTitle" placeholder="Embed title">
+    </div>
+    <div class="form-group">
+        <label>Description</label>
+        <textarea id="embedDesc" rows="4" placeholder="Embed description..."></textarea>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Thumbnail URL</label>
+            <input type="text" id="embedThumb" placeholder="https://...">
+        </div>
+        <div class="form-group">
+            <label>Footer</label>
+            <input type="text" id="embedFooter" placeholder="Footer text">
+        </div>
+    </div>
+    <div class="card preview-card" id="embedPreview">
+        <div class="embed-preview">
+            <div class="embed-color-bar" style="background:#5865F2" id="previewBar"></div>
+            <div class="embed-body">
+                <strong id="previewTitle">Title</strong>
+                <p id="previewDesc">Description</p>
+                <div class="embed-footer" id="previewFooter">Footer</div>
+            </div>
+            <img id="previewThumb" class="embed-thumb" style="display:none" alt="thumb">
+        </div>
+    </div>
+    <div class="form-group">
+        <label>Attachment (image/file)</label>
+        <input type="file" id="embedFile" accept="image/*,.pdf,.zip,.txt">
+    </div>
+    <button onclick="sendEmbed()" class="btn btn-primary">Send Embed</button>
+</div>
+
+<div class="card">
+    <h2>Send a Poll</h2>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Channel</label>
+            <select id="pollChannel" class="form-input"></select>
+        </div>
+        <div class="form-group">
+            <label>Duration (hours)</label>
+            <input type="number" id="pollDuration" value="24" min="1" max="168" placeholder="24">
+        </div>
+    </div>
+    <div class="form-group">
+        <label>Question</label>
+        <input type="text" id="pollQuestion" placeholder="What is your favorite color?">
+    </div>
+    <div class="form-group">
+        <label>Options (one per line, 2-9)</label>
+        <textarea id="pollOptions" rows="4" placeholder="Red&#10;Blue&#10;Green"></textarea>
+    </div>
+    <div class="toggle-row">
+        <span>Allow multiple answers</span>
+        <label class="switch"><input type="checkbox" id="pollMulti"><span class="slider"></span></label>
+    </div>
+    <button onclick="sendPoll()" class="btn btn-primary">🚀 Send Poll</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ---- Embed Preview ----
+function updatePreview() {
+    const title = document.getElementById('embedTitle');
+    const desc = document.getElementById('embedDesc');
+    const color = document.getElementById('embedColor');
+    const footer = document.getElementById('embedFooter');
+    const thumb = document.getElementById('embedThumb');
+    if (title) document.getElementById('previewTitle').textContent = title.value || 'Title';
+    if (desc) document.getElementById('previewDesc').textContent = desc.value || 'Description';
+    if (color) document.getElementById('previewBar').style.background = color.value || '#5865F2';
+    if (footer) document.getElementById('previewFooter').textContent = footer.value || 'Footer';
+    if (thumb && thumb.value) {
+        const img = document.getElementById('previewThumb');
+        img.src = thumb.value;
+        img.style.display = 'block';
+    }
+}
+['embedTitle','embedDesc','embedColor','embedFooter','embedThumb'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updatePreview);
+});
+
+// ---- Sender ----
+
+async function sendEmbed() {
+    const form = new FormData();
+    form.append('channel_id', document.getElementById('embedChannel').value);
+    form.append('title', document.getElementById('embedTitle').value);
+    form.append('description', document.getElementById('embedDesc').value);
+    form.append('color', document.getElementById('embedColor').value);
+    form.append('thumbnail', document.getElementById('embedThumb').value);
+    form.append('footer', document.getElementById('embedFooter').value);
+    const fileInput = document.getElementById('embedFile');
+    if (fileInput.files.length) form.append('file', fileInput.files[0]);
+    const r = await fetch('/api/embed/send', { method: 'POST', body: form });
+    if (r.ok) { showToast('✅ Embed sent!', 'success'); fileInput.value = ''; }
+    else showToast('❌ Failed to send embed', 'error');
+}
+
+async function sendMessage() {
+    const sel = document.getElementById('msgChannel');
+    if (!sel.value) { showToast('Please select a channel', 'error'); return; }
+    const content = document.getElementById('msgContent').value.trim();
+    const fileInput = document.getElementById('msgFile');
+    if (!content && !fileInput.files.length) { showToast('Enter a message or attach a file', 'error'); return; }
+    const form = new FormData();
+    form.append('channel_id', sel.value);
+    form.append('content', content);
+    if (fileInput.files.length) form.append('file', fileInput.files[0]);
+    const r = await fetch('/api/message/send', { method: 'POST', body: form });
+    if (r.ok) { showToast('✅ Message sent!', 'success'); fileInput.value = ''; document.getElementById('msgContent').value = ''; }
+    else showToast('❌ Failed to send message', 'error');
+}
+
+async function sendPoll() {
+    const sel = document.getElementById('pollChannel');
+    if (!sel.value) { showToast('Select a channel', 'error'); return; }
+    const question = document.getElementById('pollQuestion').value.trim();
+    if (!question) { showToast('Enter a question', 'error'); return; }
+    const opts = document.getElementById('pollOptions').value.split('\n').map(o => o.trim()).filter(o => o);
+    if (opts.length < 2 || opts.length > 9) { showToast('Enter 2-9 options', 'error'); return; }
+    const form = new FormData();
+    form.append('channel_id', sel.value);
+    form.append('question', question);
+    form.append('options', JSON.stringify(opts));
+    form.append('duration', document.getElementById('pollDuration').value || '24');
+    form.append('allow_multiple', document.getElementById('pollMulti').checked ? 'on' : '');
+    const r = await fetch('/api/poll/send', { method: 'POST', body: form });
+    if (r.ok) showToast('✅ Poll sent!', 'success');
+    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+}
+
+// ---- Init ----
+(async function() {
+    await populateSelect('/api/guild/channels', 'msgChannel', null, '— Select channel —');
+    await populateSelect('/api/guild/channels', 'embedChannel', null, '— Select channel —');
+    await populateSelect('/api/guild/channels', 'pollChannel', null, '— Select channel —');
+    updatePreview();
+})();
+</script>
+{% endblock %}

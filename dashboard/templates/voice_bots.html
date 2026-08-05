@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- ===== VOICE BOTS ===== -->
+<h1>Voice Bots</h1>
+<div id="voiceBotsList"></div>
+<div class="card">
+    <p style="color: var(--text-muted); font-size: 13px;">Add the bot tokens as <code>VOICE_BOT_TOKENS=token1,token2,token3</code> in your <code>.env</code> file, then restart the bot. Each token makes one bot appear here.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _voiceChannels = [];
+
+async function loadVoiceBots() {
+    const wrap = document.getElementById('voiceBotsList');
+    if (!wrap) return;
+    const active = document.activeElement;
+    if (active && wrap.contains(active)) return;
+    try {
+        const chR = await fetch('/api/guild/voice_channels');
+        _voiceChannels = await chR.json();
+    } catch(e) { _voiceChannels = []; }
+    try {
+        const r = await fetch('/api/voicebots');
+        const bots = await r.json();
+        wrap.innerHTML = bots.map(b => {
+            const opts = _voiceChannels.map(c =>
+                `<option value="${c.id}" ${b.voice_channel_id === c.id ? 'selected' : ''}>${escHtml(c.name)}</option>`
+            ).join('');
+            const dot = b.status === 'online' ? '#22c55e' : '#ef4444';
+            const statusText = b.status === 'online'
+                ? (b.channel_name ? `Online • in ${escHtml(b.channel_name)}` : 'Online')
+                : 'Offline';
+            const errHtml = b.error ? `<div style="color:#ef4444;font-size:12px;margin-top:4px">⚠️ ${escHtml(b.error)}</div>` : '';
+            return `
+            <div class="card" style="margin-bottom:16px">
+                <div class="form-row" style="align-items:flex-end">
+                    <div class="form-group" style="flex:1">
+                        <label>Bot Name <small>(shows as nickname on Discord)</small></label>
+                        <input type="text" id="vbLabel${b.bot_index}" class="form-input" value="${escHtml(b.label)}">
+                    </div>
+                    <div class="form-group" style="flex:2">
+                        <label>Voice Channel</label>
+                        <select id="vbChannel${b.bot_index}" class="form-input">
+                            <option value="">— Disabled —</option>
+                            ${opts}
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label>Status</label>
+                        <div style="display:flex;align-items:center;gap:8px;padding:10px 0">
+                            <span class="bot-status" style="background:${dot}"></span>
+                            <span style="color:var(--text)">${statusText}</span>
+                        </div>
+                        ${errHtml}
+                    </div>
+                    <div class="form-group">
+                        <label>Enabled</label>
+                        <div style="padding:8px 0"><label class="switch"><input type="checkbox" id="vbEnabled${b.bot_index}" ${b.enabled ? 'checked' : ''}><span class="slider"></span></label></div>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveVoiceBot(${b.bot_index})">Save</button>
+                </div>
+            </div>`;
+        }).join('');
+    } catch(e) {}
+}
+
+async function saveVoiceBot(index) {
+    const form = new FormData();
+    form.append('bot_index', index);
+    form.append('label', document.getElementById('vbLabel' + index).value);
+    form.append('voice_channel_id', document.getElementById('vbChannel' + index).value);
+    form.append('enabled', document.getElementById('vbEnabled' + index).checked ? 'on' : '');
+    const r = await fetch('/api/voicebots/update', { method: 'POST', body: form });
+    if (r.ok) {
+        const d = await r.json().catch(() => ({}));
+        if (d.rename_error) showToast('⚠️ ' + d.rename_error, 'error');
+        else showToast('✅ Voice bot saved!', 'success');
+        setTimeout(loadVoiceBots, 1500);
+    }
+    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+}
+
+// ---- Init ----
+loadVoiceBots();
+setInterval(loadVoiceBots, 10000);
+</script>
+{% endblock %}

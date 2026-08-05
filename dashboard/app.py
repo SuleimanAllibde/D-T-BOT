@@ -100,7 +100,95 @@ def logout():
 @app.route("/")
 @login_required
 def index():
-    return render_template("index.html")
+    return render_template("overview.html", active_page="overview")
+
+
+@app.route("/logs")
+@login_required
+def logs_page():
+    return render_template("logs.html", active_page="logs")
+
+
+@app.route("/welcomer")
+@login_required
+def welcomer_page():
+    return render_template("welcomer.html", active_page="welcomer")
+
+
+@app.route("/autoresponder")
+@login_required
+def autoresponder_page():
+    return render_template("autoresponder.html", active_page="autoresponder")
+
+
+@app.route("/roles")
+@login_required
+def roles_page():
+    return render_template("roles.html", active_page="roles")
+
+
+@app.route("/automod")
+@login_required
+def automod_page():
+    return render_template("automod.html", active_page="automod")
+
+
+@app.route("/moderation")
+@login_required
+def moderation_page():
+    return render_template("moderation.html", active_page="moderation")
+
+
+@app.route("/security")
+@login_required
+def security_page():
+    return render_template("security.html", active_page="security")
+
+
+@app.route("/sender")
+@login_required
+def sender_page():
+    return render_template("sender.html", active_page="sender")
+
+
+@app.route("/tickets")
+@login_required
+def tickets_page():
+    return render_template("tickets.html", active_page="tickets")
+
+
+@app.route("/challenges")
+@login_required
+def challenges_page():
+    return render_template("challenges.html", active_page="challenges")
+
+
+@app.route("/challenges/edit/<int:challenge_id>")
+@login_required
+def challenge_editor_page(challenge_id):
+    return render_template(
+        "challenge_editor.html",
+        active_page="challenge-editor",
+        challenge_id=challenge_id,
+        preview=request.args.get("preview") == "1",
+    )
+
+
+@app.route("/challenges/new")
+@login_required
+def challenge_new_page():
+    return render_template(
+        "challenge_editor.html",
+        active_page="challenge-editor",
+        challenge_id=None,
+        preview=False,
+    )
+
+
+@app.route("/voice-bots")
+@login_required
+def voice_bots_page():
+    return render_template("voice_bots.html", active_page="voicebots")
 
 
 # ---- Helpers ----

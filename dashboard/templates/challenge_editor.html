@@ -1,0 +1,633 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- ===== CHALLENGE EDITOR ===== -->
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+    <h1 id="cedTitle" style="margin-bottom:0">{{ 'Edit Challenge' if challenge_id else 'Create Challenge' }}</h1>
+    <div style="display:flex;gap:8px;align-items:center">
+        <span id="cedKey" class="stat-label" style="margin:0;background:var(--bg-tertiary);padding:8px 14px;border-radius:8px;border:1px solid var(--border)">—</span>
+        <button class="btn btn-success" onclick="saveChallenge()">💾 Save Challenge</button>
+        <a href="{{ url_for('challenges_page') }}" class="btn">✕ Cancel</a>
+    </div>
+</div>
+
+<div class="ced-tabs">
+    <button class="ced-tab-btn active" data-ced="general">General</button>
+    <button class="ced-tab-btn" data-ced="starter">Starter Code</button>
+    <button class="ced-tab-btn" data-ced="examples">Examples</button>
+    <button class="ced-tab-btn" data-ced="tests">Test Cases</button>
+    <button class="ced-tab-btn" data-ced="judge">Judge</button>
+    <button class="ced-tab-btn" data-ced="rewards">Rewards</button>
+    <button class="ced-tab-btn" data-ced="stats">Statistics</button>
+    <button class="ced-tab-btn" data-ced="discord">Discord Panel</button>
+</div>
+
+<div id="ced-general" class="ced-panel active">
+    <div class="card">
+        <h2><i class="fa-solid fa-file-code"></i> General</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" id="cedChTitle" class="form-input" placeholder="Two Sum">
+            </div>
+            <div class="form-group" style="flex:0.7">
+                <label>Programming Language</label>
+                <select id="cedChLang" class="form-input" onchange="updateDiscordPreview()"></select>
+            </div>
+            <div class="form-group" style="flex:0.7">
+                <label>Difficulty</label>
+                <select id="cedChDiff" class="form-input" onchange="updateDiscordPreview()">
+                    <option>Easy</option><option>Medium</option><option>Hard</option><option>Expert</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Category</label>
+                <input type="text" id="cedChCat" class="form-input" placeholder="Algorithms">
+            </div>
+            <div class="form-group">
+                <label>Estimated Time</label>
+                <input type="text" id="cedChTime" class="form-input" placeholder="~30 min">
+            </div>
+            <div class="form-group" style="flex:0.6">
+                <label>Enabled</label>
+                <div class="toggle-row"><span>Published</span>
+                    <label class="switch"><input type="checkbox" id="cedChEnabled"><span class="slider"></span></label>
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Description <small>(Markdown — renders as rich text on Discord)</small></label>
+            <div class="rt-toolbar">
+                <button type="button" class="rt-btn" onclick="rtWrap('**')">B</button>
+                <button type="button" class="rt-btn" onclick="rtWrap('*')"><i>I</i></button>
+                <button type="button" class="rt-btn" onclick="rtWrap('`')"><code>code</code></button>
+                <button type="button" class="rt-btn" onclick="rtWrap('```\n','\n```')">code block</button>
+                <button type="button" class="rt-btn" onclick="rtWrap('[text](',' )')">link</button>
+                <button type="button" class="rt-btn" onclick="rtBullet()">• list</button>
+                <span style="flex:1"></span>
+                <span style="font-size:11px;color:var(--text-muted)">Live preview below</span>
+            </div>
+            <textarea id="cedChDesc" class="form-input code-input" rows="7" placeholder="Describe the challenge..." oninput="updateDiscordPreview()"></textarea>
+            <div class="rt-preview" id="cedDescPreview"></div>
+        </div>
+    </div>
+</div>
+
+<div id="ced-starter" class="ced-panel">
+    <div class="card">
+        <h2><i class="fa-solid fa-code"></i> Starter Code</h2>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Provide starter code for every supported language. Code reads from <b>stdin</b> and prints to <b>stdout</b>.</p>
+        <div class="lang-tabs" id="cedStarterTabs"></div>
+        <textarea id="cedStarterCode" class="form-input code-input" rows="16" spellcheck="false" style="font-family:monospace"></textarea>
+        <div style="margin-top:10px;display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="chSaveStarter()">💾 Save This Template</button>
+            <button class="btn btn-sm" onclick="chResetStarter()">↺ Reset to Default</button>
+            <span id="cedStarterStatus" style="align-self:center;color:var(--text-muted);font-size:12px"></span>
+        </div>
+    </div>
+</div>
+
+<div id="ced-examples" class="ced-panel">
+    <div class="card">
+        <h2><i class="fa-solid fa-lightbulb"></i> Examples <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="addExample()">+ Add Example</button></h2>
+        <div id="cedExamplesList"></div>
+    </div>
+</div>
+
+<div id="ced-tests" class="ced-panel">
+    <div class="card">
+        <h2><i class="fa-solid fa-vial"></i> Hidden Test Cases <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="addTestCase()">+ Add Test Case</button></h2>
+        <div id="cedTestsList"></div>
+    </div>
+</div>
+
+<div id="ced-judge" class="ced-panel">
+    <div class="card">
+        <h2><i class="fa-solid fa-scale-balanced"></i> Judge Settings</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Time Limit (seconds)</label>
+                <input type="number" id="cedTimeLimit" class="form-input" value="2" min="1" max="15">
+            </div>
+            <div class="form-group">
+                <label>Memory Limit (MB)</label>
+                <input type="number" id="cedMemLimit" class="form-input" value="256" min="16">
+            </div>
+            <div class="form-group">
+                <label>Max Code Size (bytes)</label>
+                <input type="number" id="cedMaxCode" class="form-input" value="100000">
+            </div>
+        </div>
+        <div class="toggle-row"><span>Ignore Trailing Spaces</span>
+            <label class="switch"><input type="checkbox" id="cedIgnoreTrailing"><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row"><span>Ignore Empty Lines</span>
+            <label class="switch"><input type="checkbox" id="cedIgnoreEmpty"><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row"><span>Case Sensitive</span>
+            <label class="switch"><input type="checkbox" id="cedCaseSensitive"><span class="slider"></span></label>
+        </div>
+    </div>
+</div>
+
+<div id="ced-rewards" class="ced-panel">
+    <div class="card">
+        <h2><i class="fa-solid fa-gift"></i> Rewards</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label>XP Reward</label>
+                <input type="number" id="cedXpReward" class="form-input" value="50" min="0">
+            </div>
+            <div class="form-group">
+                <label>Coins Reward</label>
+                <input type="number" id="cedCoinsReward" class="form-input" value="10" min="0">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Unlock Achievement <small>(name, optional)</small></label>
+                <input type="text" id="cedAchievement" class="form-input" placeholder="e.g. First Blood">
+            </div>
+        </div>
+        <div class="toggle-row"><span>Unlock Next Challenge</span>
+            <label class="switch"><input type="checkbox" id="cedUnlockNext"><span class="slider"></span></label>
+        </div>
+    </div>
+</div>
+
+<div id="ced-stats" class="ced-panel">
+    <div class="card">
+        <h2><i class="fa-solid fa-chart-line"></i> Statistics</h2>
+        <div class="stats-grid" style="margin-bottom:0">
+            <div class="stat-card"><div class="stat-icon" style="color:var(--accent)"><i class="fa-solid fa-bolt"></i></div><div><span class="stat-label">Total Attempts</span><span class="stat-value" id="cedStatAttempts">0</span></div></div>
+            <div class="stat-card"><div class="stat-icon" style="color:var(--green)"><i class="fa-solid fa-circle-check"></i></div><div><span class="stat-label">Successful</span><span class="stat-value" id="cedStatSuccess">0</span></div></div>
+            <div class="stat-card"><div class="stat-icon" style="color:var(--yellow)"><i class="fa-solid fa-percent"></i></div><div><span class="stat-label">Success Rate</span><span class="stat-value" id="cedStatRate">0%</span></div></div>
+            <div class="stat-card"><div class="stat-icon" style="color:#14b8a6"><i class="fa-solid fa-stopwatch"></i></div><div><span class="stat-label">Avg Solve Time</span><span class="stat-value" id="cedStatAvg">0s</span></div></div>
+        </div>
+    </div>
+</div>
+
+<div id="ced-discord" class="ced-panel">
+    <div class="card">
+        <h2><i class="fa-brands fa-discord"></i> Discord Panel Preview</h2>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">Live preview of the embed users will see in Discord.</p>
+        <div class="embed-preview discord-embed">
+            <div class="embed-color-bar" id="cedPreviewBar"></div>
+            <div class="embed-body">
+                <strong id="cedPreviewTitle">Challenge Title</strong>
+                <p id="cedPreviewDesc"></p>
+                <div class="embed-fields" id="cedPreviewFields"></div>
+                <div class="ch-buttons">
+                    <span class="ch-btn ch-btn-primary">▶️ Start Challenge</span>
+                    <span class="ch-btn">🏆 View Leaderboard</span>
+                </div>
+                <div class="embed-footer" id="cedPreviewFooter">D&T Programming Challenges</div>
+            </div>
+            <img id="cedPreviewThumb" class="embed-thumb" style="display:none" alt="">
+        </div>
+        <div style="margin-top:16px;display:flex;gap:8px;align-items:center">
+            <button class="btn btn-success" onclick="saveChallengeThenSend()">💾 Save &amp; Send Panels</button>
+            <span style="color:var(--text-muted);font-size:12px">Saves the challenge, then sends the panel to the configured channel.</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const _chLangs = ['C++', 'Python', 'JavaScript', 'Java', 'C#', 'Go', 'Rust'];
+const _chStarterTemplates = {
+    'C++': '#include <iostream>\nusing namespace std;\n\nint main() {\n    int n;\n    cin >> n;\n    cout << n << endl;\n    return 0;\n}\n',
+    'Python': 'import sys\n\ndef main():\n    data = sys.stdin.read().split()\n    # write your solution here\n    print(data)\n\nif __name__ == "__main__":\n    main()\n',
+    'JavaScript': 'const readline = require("readline");\nconst rl = readline.createInterface({ input: process.stdin });\n\nrl.on("line", (line) => {\n    // write your solution here\n    console.log(line);\n});\n',
+    'Java': 'import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // write your solution here\n        while (sc.hasNextLine()) {\n            System.out.println(sc.nextLine());\n        }\n    }\n}\n',
+    'C#': 'using System;\n\nclass Program {\n    static void Main() {\n        string line;\n        while ((line = Console.ReadLine()) != null) {\n            // write your solution here\n            Console.WriteLine(line);\n        }\n    }\n}\n',
+    'Go': 'package main\n\nimport (\n    "bufio"\n    "fmt"\n    "os"\n)\n\nfunc main() {\n    scanner := bufio.NewScanner(os.Stdin)\n    for scanner.Scan() {\n        // write your solution here\n        fmt.Println(scanner.Text())\n    }\n}\n',
+    'Rust': 'use std::io;\n\nfn main() {\n    let mut input = String::new();\n    io::stdin().read_to_string(&mut input).unwrap();\n    // write your solution here\n    print!("{}", input);\n}\n'
+};
+
+let _chSettings = null;
+let _chEditor = {
+    id: null,
+    key: null,
+    lang: 'Python',
+    starter: { 'C++': '', 'Python': '', 'JavaScript': '', 'Java': '', 'C#': '', 'Go': '', 'Rust': '' },
+    examples: [],
+    test_cases: [],
+    dirty: false
+};
+let _chSaving = false;
+
+function chDiffClass(d) {
+    const m = { 'Easy': 'ch-diff-easy', 'Medium': 'ch-diff-medium', 'Hard': 'ch-diff-hard', 'Expert': 'ch-diff-expert' };
+    return m[d] || 'ch-diff-medium';
+}
+
+function chShowCedTab(name) {
+    document.querySelectorAll('.ced-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.ced === name));
+    document.querySelectorAll('.ced-panel').forEach(p => p.classList.toggle('active', p.id === 'ced-' + name));
+}
+
+function populateEditorLangs() {
+    const sel = document.getElementById('cedChLang');
+    if (!sel || sel.options.length > 0) return;
+    sel.innerHTML = _chLangs.map(l => `<option value="${l}">${l}</option>`).join('');
+}
+
+async function loadEditorSettings() {
+    try {
+        const r = await fetch('/api/challenges/settings');
+        const s = await r.json();
+        if (r.ok) _chSettings = s;
+    } catch(e) { _chSettings = {}; }
+}
+
+function fillEditorForm() {
+    document.getElementById('cedChTitle').value = _chEditor.title || '';
+    document.getElementById('cedChLang').value = _chEditor.lang;
+    document.getElementById('cedChDiff').value = _chEditor.difficulty || 'Easy';
+    document.getElementById('cedChCat').value = _chEditor.category || '';
+    document.getElementById('cedChTime').value = _chEditor.estimated_time || '';
+    document.getElementById('cedChEnabled').checked = !!_chEditor.enabled;
+    document.getElementById('cedChDesc').value = _chEditor.description || '';
+    document.getElementById('cedTimeLimit').value = _chEditor.time_limit != null ? _chEditor.time_limit : 2;
+    document.getElementById('cedMemLimit').value = _chEditor.memory_limit != null ? _chEditor.memory_limit : 256;
+    document.getElementById('cedMaxCode').value = _chEditor.max_code_size != null ? _chEditor.max_code_size : 100000;
+    document.getElementById('cedIgnoreTrailing').checked = !!_chEditor.ignore_trailing_spaces;
+    document.getElementById('cedIgnoreEmpty').checked = !!_chEditor.ignore_empty_lines;
+    document.getElementById('cedCaseSensitive').checked = _chEditor.case_sensitive !== false;
+    document.getElementById('cedXpReward').value = _chEditor.xp_reward != null ? _chEditor.xp_reward : 50;
+    document.getElementById('cedCoinsReward').value = _chEditor.coins_reward != null ? _chEditor.coins_reward : 10;
+    document.getElementById('cedAchievement').value = _chEditor.unlock_achievement || '';
+    document.getElementById('cedUnlockNext').checked = !!_chEditor.unlock_next_challenge;
+    const st = _chEditor.stats || {};
+    document.getElementById('cedStatAttempts').textContent = st.total_attempts || 0;
+    document.getElementById('cedStatSuccess').textContent = st.successful_attempts || 0;
+    document.getElementById('cedStatRate').textContent = (st.success_rate != null ? st.success_rate : 0) + '%';
+    document.getElementById('cedStatAvg').textContent = (st.avg_solve_time != null ? st.avg_solve_time : 0) + 's';
+    cedRenderStarter();
+    renderExamples();
+    renderTestCases();
+    updateDiscordPreview();
+}
+
+async function loadChallengeIntoEditor(id) {
+    const r = await fetch('/api/challenges/' + id);
+    if (!r.ok) { showToast('❌ Failed to load challenge', 'error'); return; }
+    const c = await r.json();
+    _chEditor = {
+        id: c.id,
+        key: c.challenge_key,
+        title: c.title || '',
+        lang: _chLangs.includes(c.language) ? c.language : 'Python',
+        difficulty: c.difficulty || 'Easy',
+        category: c.category || '',
+        estimated_time: c.estimated_time || '',
+        enabled: !!c.enabled,
+        description: c.description || '',
+        time_limit: c.time_limit,
+        memory_limit: c.memory_limit,
+        max_code_size: c.max_code_size,
+        ignore_trailing_spaces: !!c.ignore_trailing_spaces,
+        ignore_empty_lines: !!c.ignore_empty_lines,
+        case_sensitive: c.case_sensitive !== false,
+        xp_reward: c.xp_reward,
+        coins_reward: c.coins_reward,
+        unlock_achievement: c.unlock_achievement || '',
+        unlock_next_challenge: !!c.unlock_next_challenge,
+        stats: c.stats || {},
+        starter: Object.assign({}, _chStarterTemplates, c.starter_codes || {}),
+        examples: (c.examples || []).map(e => ({ input: e.input || '', output: e.output || '', explanation: e.explanation || '' })),
+        test_cases: (c.test_cases || []).map(t => ({ input: t.input || '', expected_output: t.expected_output || '', hidden: t.hidden })),
+        dirty: false
+    };
+    document.getElementById('cedTitle').textContent = 'Edit Challenge';
+    fillEditorForm();
+}
+
+function newChallenge() {
+    _chEditor = {
+        id: null,
+        key: null,
+        lang: 'Python',
+        title: '',
+        difficulty: 'Easy',
+        category: '',
+        estimated_time: '',
+        enabled: true,
+        description: '',
+        time_limit: 2,
+        memory_limit: 256,
+        max_code_size: 100000,
+        ignore_trailing_spaces: false,
+        ignore_empty_lines: false,
+        case_sensitive: true,
+        xp_reward: 50,
+        coins_reward: 10,
+        unlock_achievement: '',
+        unlock_next_challenge: false,
+        stats: {},
+        starter: Object.assign({}, _chStarterTemplates),
+        examples: [],
+        test_cases: [],
+        dirty: false
+    };
+    document.getElementById('cedTitle').textContent = 'Create Challenge';
+    fillEditorForm();
+}
+
+// ---- Starter code ----
+
+function cedRenderStarter() {
+    const tabs = document.getElementById('cedStarterTabs');
+    tabs.innerHTML = _chLangs.map(l =>
+        `<button class="lang-tab ${l === _chEditor.lang ? 'active' : ''}" onclick="cedStarterLang('${l}')">${l}</button>`
+    ).join('');
+    document.getElementById('cedStarterCode').value = _chEditor.starter[_chEditor.lang] || '';
+    document.getElementById('cedStarterStatus').textContent = '';
+}
+
+function cedStarterLang(lang) {
+    _chEditor.starter[_chEditor.lang] = document.getElementById('cedStarterCode').value;
+    _chEditor.lang = lang;
+    cedRenderStarter();
+    document.getElementById('cedChLang').value = lang;
+    updateDiscordPreview();
+}
+
+function chSaveStarter() {
+    _chEditor.starter[_chEditor.lang] = document.getElementById('cedStarterCode').value;
+    _chEditor.dirty = true;
+    const el = document.getElementById('cedStarterStatus');
+    el.textContent = '✅ Saved for ' + _chEditor.lang;
+    setTimeout(() => el.textContent = '', 2000);
+}
+
+function chResetStarter() {
+    _chEditor.starter[_chEditor.lang] = _chStarterTemplates[_chEditor.lang] || '';
+    document.getElementById('cedStarterCode').value = _chEditor.starter[_chEditor.lang];
+    _chEditor.dirty = true;
+    const el = document.getElementById('cedStarterStatus');
+    el.textContent = '↺ Reset to default';
+    setTimeout(() => el.textContent = '', 2000);
+}
+
+// ---- Examples ----
+
+function renderExamples() {
+    const wrap = document.getElementById('cedExamplesList');
+    wrap.innerHTML = _chEditor.examples.map((e, i) => `
+    <div class="ch-editor-block">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <strong>Example ${i + 1}</strong>
+            <button class="btn btn-sm btn-danger" onclick="removeExample(${i})">Remove</button>
+        </div>
+        <div class="form-group">
+            <label>Input</label>
+            <textarea class="form-input code-input" rows="2" oninput="chExampleField(${i}, 'input', this.value)">${escHtml(e.input)}</textarea>
+        </div>
+        <div class="form-group">
+            <label>Expected Output</label>
+            <textarea class="form-input code-input" rows="2" oninput="chExampleField(${i}, 'output', this.value)">${escHtml(e.output)}</textarea>
+        </div>
+        <div class="form-group">
+            <label>Explanation</label>
+            <textarea class="form-input" rows="1" oninput="chExampleField(${i}, 'explanation', this.value)">${escHtml(e.explanation)}</textarea>
+        </div>
+    </div>`).join('') || '<p style="color:var(--text-muted)">No examples yet. Add some to help users understand the challenge.</p>';
+}
+
+function chExampleField(i, field, value) {
+    _chEditor.examples[i][field] = value;
+    _chEditor.dirty = true;
+}
+
+function addExample() {
+    _chEditor.examples.push({ input: '', output: '', explanation: '' });
+    renderExamples();
+}
+
+function removeExample(i) {
+    _chEditor.examples.splice(i, 1);
+    renderExamples();
+}
+
+// ---- Test cases ----
+
+function renderTestCases() {
+    const wrap = document.getElementById('cedTestsList');
+    wrap.innerHTML = _chEditor.test_cases.map((t, i) => `
+    <div class="ch-editor-block">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <strong>Test Case ${i + 1}</strong>
+            <div style="display:flex;align-items:center;gap:12px">
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+                    <input type="checkbox" ${t.hidden ? 'checked' : ''} onchange="chTestHidden(${i}, this.checked)">
+                    Hidden
+                </label>
+                <button class="btn btn-sm btn-danger" onclick="removeTestCase(${i})">Remove</button>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Input</label>
+                <textarea class="form-input code-input" rows="2" oninput="chTestField(${i}, 'input', this.value)">${escHtml(t.input)}</textarea>
+            </div>
+            <div class="form-group">
+                <label>Expected Output</label>
+                <textarea class="form-input code-input" rows="2" oninput="chTestField(${i}, 'expected_output', this.value)">${escHtml(t.expected_output)}</textarea>
+            </div>
+        </div>
+    </div>`).join('') || '<p style="color:var(--text-muted)">No test cases yet. Hidden test cases are used to judge submissions.</p>';
+}
+
+function chTestField(i, field, value) {
+    _chEditor.test_cases[i][field] = value;
+    _chEditor.dirty = true;
+}
+
+function chTestHidden(i, val) {
+    _chEditor.test_cases[i].hidden = val;
+    _chEditor.dirty = true;
+}
+
+function addTestCase() {
+    _chEditor.test_cases.push({ input: '', expected_output: '', hidden: true });
+    renderTestCases();
+}
+
+function removeTestCase(i) {
+    _chEditor.test_cases.splice(i, 1);
+    renderTestCases();
+}
+
+// ---- Rich text toolbar ----
+
+function rtWrap(pre, post) {
+    if (typeof post === 'undefined') post = pre;
+    const ta = document.getElementById('cedChDesc');
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const text = ta.value;
+    ta.value = text.slice(0, s) + pre + text.slice(s, e) + post + text.slice(e);
+    ta.focus();
+    ta.selectionStart = s + pre.length;
+    ta.selectionEnd = e + pre.length;
+    _chEditor.dirty = true;
+    updateDiscordPreview();
+}
+
+function rtBullet() {
+    const ta = document.getElementById('cedChDesc');
+    const s = ta.selectionStart;
+    const text = ta.value;
+    ta.value = text.slice(0, s) + '\n- ' + text.slice(s);
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = s + 3;
+    _chEditor.dirty = true;
+    updateDiscordPreview();
+}
+
+function chRenderMarkdown(src) {
+    return escHtml(src)
+        .replace(/```([\s\S]*?)```/g, (m, c) => '<div class="md-code-block">' + c.trim() + '</div>')
+        .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+        .replace(/\n- /g, '\n• ')
+        .replace(/\n/g, '<br>');
+}
+
+// ---- Discord embed preview ----
+
+function updateDiscordPreview() {
+    const title = document.getElementById('cedChTitle').value || 'Challenge Title';
+    const desc = document.getElementById('cedChDesc').value || 'Describe the challenge...';
+    const lang = document.getElementById('cedChLang').value || 'Python';
+    const diff = document.getElementById('cedChDiff').value || 'Easy';
+    const cat = document.getElementById('cedChCat').value || '—';
+    const time = document.getElementById('cedChTime').value || '—';
+    const xp = document.getElementById('cedXpReward').value || 0;
+    const color = (_chSettings && _chSettings.embed_color) || '#5865F2';
+    const thumb = (_chSettings && _chSettings.thumbnail) || '';
+    const footer = (_chSettings && _chSettings.footer) || 'D&T Programming Challenges';
+
+    document.getElementById('cedPreviewBar').style.background = color;
+    document.getElementById('cedPreviewTitle').textContent = title;
+    document.getElementById('cedPreviewDesc').innerHTML = chRenderMarkdown(desc) || 'Describe the challenge...';
+    document.getElementById('cedPreviewFields').innerHTML = `
+        <div class="embed-field"><span class="embed-field-name">Difficulty</span><span class="ch-diff ${chDiffClass(diff)}">${diff}</span></div>
+        <div class="embed-field"><span class="embed-field-name">Language</span>${escHtml(lang)}</div>
+        <div class="embed-field"><span class="embed-field-name">Category</span>${escHtml(cat)}</div>
+        <div class="embed-field"><span class="embed-field-name">Estimated Time</span>${escHtml(time)}</div>
+        <div class="embed-field"><span class="embed-field-name">Reward</span>⚡ ${xp} XP</div>`;
+    document.getElementById('cedPreviewFooter').textContent = footer;
+    const img = document.getElementById('cedPreviewThumb');
+    if (thumb) { img.src = thumb; img.style.display = 'block'; }
+    else img.style.display = 'none';
+    const key = _chEditor.key ? _chEditor.key : (title ? 'New Challenge' : '');
+    document.getElementById('cedKey').textContent = key || 'New Challenge';
+    document.getElementById('cedKey').style.color = _chEditor.key ? 'var(--accent)' : 'var(--text-muted)';
+}
+
+// ---- Save / Cancel ----
+
+function cedReadForm() {
+    _chEditor.starter[_chEditor.lang] = document.getElementById('cedStarterCode').value;
+    return {
+        title: document.getElementById('cedChTitle').value,
+        description: document.getElementById('cedChDesc').value,
+        language: document.getElementById('cedChLang').value,
+        category: document.getElementById('cedChCat').value,
+        difficulty: document.getElementById('cedChDiff').value,
+        enabled: document.getElementById('cedChEnabled').checked,
+        estimated_time: document.getElementById('cedChTime').value,
+        time_limit: parseInt(document.getElementById('cedTimeLimit').value) || 2,
+        memory_limit: parseInt(document.getElementById('cedMemLimit').value) || 256,
+        max_code_size: parseInt(document.getElementById('cedMaxCode').value) || 100000,
+        ignore_trailing_spaces: document.getElementById('cedIgnoreTrailing').checked,
+        ignore_empty_lines: document.getElementById('cedIgnoreEmpty').checked,
+        case_sensitive: document.getElementById('cedCaseSensitive').checked,
+        xp_reward: parseInt(document.getElementById('cedXpReward').value) || 0,
+        coins_reward: parseInt(document.getElementById('cedCoinsReward').value) || 0,
+        unlock_achievement: document.getElementById('cedAchievement').value,
+        unlock_next_challenge: document.getElementById('cedUnlockNext').checked,
+        starter_codes: _chEditor.starter,
+        examples: _chEditor.examples,
+        test_cases: _chEditor.test_cases
+    };
+}
+
+async function saveChallenge() {
+    if (_chSaving) return;
+    const data = cedReadForm();
+    if (!data.title.trim()) { showToast('❌ Title is required', 'error'); chShowCedTab('general'); return; }
+    _chSaving = true;
+    showToast('💾 Saving...', '');
+    try {
+        const r = await fetch('/api/challenges' + (_chEditor.id ? '/' + _chEditor.id : ''), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (r.ok) {
+            const d = await r.json();
+            showToast('✅ Challenge saved (' + d.challenge_key + ')', 'success');
+            _chEditor.id = d.id;
+            _chEditor.key = d.challenge_key;
+            _chEditor.dirty = false;
+            document.getElementById('cedKey').textContent = d.challenge_key;
+            document.getElementById('cedKey').style.color = 'var(--accent)';
+        } else {
+            const d = await r.json();
+            showToast('❌ ' + (d.error || 'Failed'), 'error');
+        }
+    } catch(e) {
+        showToast('❌ Network error', 'error');
+    }
+    _chSaving = false;
+}
+
+async function saveChallengeThenSend() {
+    await saveChallenge();
+    if (_chEditor.key) await sendChallengePanel();
+}
+
+async function sendChallengePanel() {
+    const form = new FormData();
+    if (_chSettings && _chSettings.channel_id) form.append('channel_id', _chSettings.channel_id);
+    showToast('📨 Sending panels...', '');
+    try {
+        const r = await fetch('/api/challenges/send-panel', { method: 'POST', body: form });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && d.success) showToast('✅ Panel sent', 'success');
+        else showToast('❌ ' + (d.error || 'Failed to send panel'), 'error');
+    } catch(e) {
+        showToast('❌ Network error', 'error');
+    }
+}
+
+// ---- Init ----
+(async function() {
+    populateEditorLangs();
+    await loadEditorSettings();
+    {% if challenge_id %}
+    await loadChallengeIntoEditor({{ challenge_id }});
+    {% if preview %}chShowCedTab('discord');{% endif %}
+    {% else %}
+    newChallenge();
+    {% endif %}
+})();
+
+// Wire editor tab buttons + live preview inputs
+document.addEventListener('click', function(ev) {
+    const btn = ev.target.closest('.ced-tab-btn');
+    if (btn) chShowCedTab(btn.dataset.ced);
+});
+['cedChTitle', 'cedChLang', 'cedChDiff', 'cedChCat', 'cedChTime', 'cedXpReward'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateDiscordPreview);
+});
+document.getElementById('cedChDesc').addEventListener('input', updateDiscordPreview);
+</script>
+{% endblock %}

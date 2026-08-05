@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- ===== SECURITY ===== -->
+<h1>Security Manager</h1>
+
+<div class="card">
+    <h2>Add New Limit</h2>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Monitor Action</label>
+            <select id="secAction" class="form-input">
+                <option value="ban">Ban</option>
+                <option value="kick">Kick</option>
+                <option value="mute">Timeout</option>
+                <option value="channel_delete">Channel Deleted</option>
+                <option value="role_delete">Role Deleted</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Max Count</label>
+            <input type="number" id="secCount" value="5" min="1" max="50">
+        </div>
+        <div class="form-group">
+            <label>Time Window (min)</label>
+            <input type="number" id="secWindow" value="60" min="1" max="1440">
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Punishment</label>
+            <select id="secPunish" class="form-input">
+                <option value="ban">Ban Actor</option>
+                <option value="kick">Kick Actor</option>
+                <option value="remove_roles">Remove All Roles</option>
+                <option value="timeout_1h">Timeout Actor (1h)</option>
+                <option value="lockdown">Server Lockdown</option>
+            </select>
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end">
+            <button onclick="addSecurityLimit()" class="btn btn-primary" style="height:40px">➕ Add Limit</button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Active Limits</h2>
+    <table class="data-table">
+        <thead><tr><th>Action</th><th>Max</th><th>Window</th><th>Punishment</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody id="secLimitsBody"></tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h2>Whitelist</h2>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px;">Whitelisted users and roles are exempt from all security limits.</p>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Type</label>
+            <select id="secWlType" class="form-input">
+                <option value="user">User</option>
+                <option value="role">Role</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>ID</label>
+            <input type="text" id="secWlId" placeholder="User or Role ID">
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end">
+            <button onclick="addWhitelist()" class="btn btn-primary" style="height:40px">➕ Add</button>
+        </div>
+    </div>
+    <table class="data-table">
+        <thead><tr><th>Type</th><th>ID</th><th>Action</th></tr></thead>
+        <tbody id="secWlBody"></tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SEC_ACTIONS = {ban:'Ban',kick:'Kick',mute:'Timeout',channel_delete:'Channel Deleted',role_delete:'Role Deleted'};
+const SEC_PUNISHMENTS = {ban:'Ban Actor',kick:'Kick Actor',remove_roles:'Remove All Roles',timeout_1h:'Timeout (1h)',lockdown:'Server Lockdown'};
+
+async function loadSecurity() {
+    try {
+        const r = await fetch('/api/security/limits');
+        const limits = await r.json();
+        const tbody = document.getElementById('secLimitsBody');
+        if (!tbody) return;
+        tbody.innerHTML = limits.map(l => `
+            <tr>
+                <td>${SEC_ACTIONS[l.action_type] || l.action_type}</td>
+                <td>${l.max_count}</td>
+                <td>${l.time_window}m</td>
+                <td>${SEC_PUNISHMENTS[l.punishment] || l.punishment}</td>
+                <td><label class="switch" style="transform:scale(0.7)"><input type="checkbox" ${l.enabled ? 'checked' : ''} onchange="toggleLimit(${l.id}, this.checked)"><span class="slider"></span></label></td>
+                <td><button class="btn btn-danger btn-sm" onclick="deleteLimit(${l.id})">✕</button></td>
+            </tr>
+        `).join('');
+    } catch(e) {}
+    try {
+        const r = await fetch('/api/security/whitelist');
+        const wl = await r.json();
+        const tbody = document.getElementById('secWlBody');
+        if (!tbody) return;
+        tbody.innerHTML = wl.map(e => `
+            <tr>
+                <td>${e.entity_type === 'user' ? '👤 User' : '🎭 Role'}</td>
+                <td><code>${e.entity_id}</code></td>
+                <td><button class="btn btn-danger btn-sm" onclick="deleteWhitelist(${e.id})">✕</button></td>
+            </tr>
+        `).join('');
+    } catch(e) {}
+}
+
+async function addSecurityLimit() {
+    const form = new FormData();
+    form.append('action_type', document.getElementById('secAction').value);
+    form.append('max_count', document.getElementById('secCount').value);
+    form.append('time_window', document.getElementById('secWindow').value);
+    form.append('punishment', document.getElementById('secPunish').value);
+    form.append('enabled', 'on');
+    const r = await fetch('/api/security/limits', { method: 'POST', body: form });
+    if (r.ok) { showToast('✅ Limit added!', 'success'); loadSecurity(); }
+    else showToast('❌ Failed', 'error');
+}
+
+async function toggleLimit(id, enabled) {
+    const form = new FormData();
+    form.append('enabled', enabled ? 'on' : '');
+    await fetch('/api/security/limits/' + id, { method: 'POST', body: form });
+}
+
+async function deleteLimit(id) {
+    if (!confirm('Delete this limit?')) return;
+    const r = await fetch('/api/security/limits/' + id, { method: 'DELETE' });
+    if (r.ok) { showToast('✅ Deleted', 'success'); loadSecurity(); }
+}
+
+async function addWhitelist() {
+    const form = new FormData();
+    form.append('entity_type', document.getElementById('secWlType').value);
+    form.append('entity_id', document.getElementById('secWlId').value);
+    const r = await fetch('/api/security/whitelist', { method: 'POST', body: form });
+    if (r.ok) { showToast('✅ Added to whitelist', 'success'); document.getElementById('secWlId').value = ''; loadSecurity(); }
+    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+}
+
+async function deleteWhitelist(id) {
+    const r = await fetch('/api/security/whitelist/' + id, { method: 'DELETE' });
+    if (r.ok) { showToast('✅ Removed', 'success'); loadSecurity(); }
+}
+
+// ---- Init ----
+loadSecurity();
+</script>
+{% endblock %}

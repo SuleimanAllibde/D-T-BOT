@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- ===== AUTO-RESPONDER ===== -->
+<h1>Auto-Responder</h1>
+<div class="card">
+    <h2>Add Trigger</h2>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Trigger Word</label>
+            <input type="text" id="arTrigger" placeholder="e.g. hi">
+        </div>
+        <div class="form-group">
+            <label>Bot Response</label>
+            <input type="text" id="arResponse" placeholder="e.g. Hello there!">
+        </div>
+    </div>
+    <button onclick="addAutoResponder()" class="btn btn-primary">Add Trigger</button>
+</div>
+<div class="card">
+    <h2>Existing Triggers</h2>
+    <table class="data-table" id="arTable">
+        <thead><tr><th>Trigger</th><th>Response</th><th>Action</th></tr></thead>
+        <tbody id="arBody"></tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadAutoResponder() {
+    try {
+        const r = await fetch('/api/autoresponder');
+        const data = await r.json();
+        const body = document.getElementById('arBody');
+        body.innerHTML = data.map(item =>
+            `<tr><td>${escHtml(item.trigger)}</td><td>${escHtml(item.response)}</td><td><button class="btn btn-danger btn-sm" onclick="deleteAutoResponder(${item.id})">Delete</button></td></tr>`
+        ).join('');
+    } catch(e) {}
+}
+
+async function addAutoResponder() {
+    const trigger = document.getElementById('arTrigger').value.trim();
+    const response = document.getElementById('arResponse').value.trim();
+    if (!trigger || !response) { showToast('Fill in both fields', 'error'); return; }
+    const form = new FormData();
+    form.append('trigger', trigger);
+    form.append('response', response);
+    await fetch('/api/autoresponder/add', { method: 'POST', body: form });
+    document.getElementById('arTrigger').value = '';
+    document.getElementById('arResponse').value = '';
+    loadAutoResponder();
+}
+
+async function deleteAutoResponder(id) {
+    await fetch('/api/autoresponder/delete/' + id, { method: 'POST' });
+    loadAutoResponder();
+}
+
+// ---- Init ----
+loadAutoResponder();
+setInterval(loadAutoResponder, 15000);
+</script>
+{% endblock %}

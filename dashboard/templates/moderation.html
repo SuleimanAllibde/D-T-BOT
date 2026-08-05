@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- ===== MODERATION / LOGGING ===== -->
+<h1>Logging &amp; Moderation</h1>
+
+<div class="card">
+    <h2>Log Channel</h2>
+    <p style="color:var(--text-secondary);font-size:13px;margin:0 0 12px">Select the channel where log messages are sent.</p>
+    <div class="form-row">
+        <div class="form-group" style="flex:2">
+            <select id="logChannel" class="form-input"></select>
+        </div>
+        <div class="form-group" style="flex:0;display:flex;align-items:flex-end">
+            <button onclick="saveLogChannel()" class="btn btn-primary" style="height:42px">Save Channel</button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Log Events</h2>
+    <p style="color:var(--text-secondary);font-size:13px;margin:0 0 16px">Toggle each log type and customize its embed color.</p>
+    <table class="data-table">
+        <thead><tr><th>Event</th><th>Status</th><th>Color</th></tr></thead>
+        <tbody id="logEventsBody"></tbody>
+    </table>
+    <button onclick="saveLogSettings()" class="btn btn-primary" style="margin-top:16px">Save Log Settings</button>
+</div>
+
+<div class="card">
+    <h2>Color Preview</h2>
+    <div class="embed-preview" id="logPreview" style="max-width:100%">
+        <div class="embed-color-bar" id="logPreviewBar" style="background:#22c55e"></div>
+        <div class="embed-body">
+            <strong id="logPreviewTitle">Member Joined</strong>
+            <p id="logPreviewDesc">@username joined the server\nAccount: 2 days ago</p>
+            <div class="embed-footer" id="logPreviewFooter">ID: 123456789</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const LOG_EVENTS = [
+    {key:'member_join', label:'Member Joined', icon:'👋', defaultColor:'#22c55e'},
+    {key:'member_leave', label:'Member Left', icon:'🚪', defaultColor:'#ef4444'},
+    {key:'nickname_change', label:'Nickname Changed', icon:'✏️', defaultColor:'#5865f2'},
+    {key:'role_add', label:'Role Added', icon:'🎭', defaultColor:'#22c55e'},
+    {key:'role_remove', label:'Role Removed', icon:'🚫', defaultColor:'#ef4444'},
+    {key:'message_delete', label:'Message Deleted', icon:'🗑️', defaultColor:'#ef4444'},
+    {key:'message_edit', label:'Message Edited', icon:'📝', defaultColor:'#eab308'},
+    {key:'voice_join', label:'Voice Joined', icon:'🔊', defaultColor:'#22c55e'},
+    {key:'voice_leave', label:'Voice Left', icon:'🔇', defaultColor:'#ef4444'},
+    {key:'invite_create', label:'Invite Created', icon:'🔗', defaultColor:'#5865f2'},
+];
+
+let _logSettings = {};
+
+async function loadLogging() {
+    await populateSelect('/api/guild/channels', 'logChannel', null, '— Select log channel —');
+    try {
+        const r = await fetch('/api/stats');
+        const stats = await r.json();
+        const sel = document.getElementById('logChannel');
+        if (sel && stats.log_channel_id) sel.value = stats.log_channel_id;
+    } catch(e) {}
+    try {
+        const r = await fetch('/api/logging/settings');
+        const data = await r.json();
+        _logSettings = data.log_settings || {};
+    } catch(e) { _logSettings = {}; }
+    renderLogEvents();
+}
+
+function renderLogEvents() {
+    const tbody = document.getElementById('logEventsBody');
+    if (!tbody) return;
+    tbody.innerHTML = LOG_EVENTS.map(ev => {
+        const s = _logSettings[ev.key] || {};
+        const enabled = s.enabled !== false;
+        const color = s.color || ev.defaultColor;
+        return `<tr>
+            <td>${ev.icon} ${ev.label}</td>
+            <td><label class="switch" style="transform:scale(0.7)"><input type="checkbox" data-log-type="${ev.key}" data-log-field="enabled" ${enabled ? 'checked' : ''}><span class="slider"></span></label></td>
+            <td><input type="color" value="${color}" data-log-type="${ev.key}" data-log-field="color" style="width:36px;height:32px;border:none;background:none;cursor:pointer" onchange="previewLogColor(this)"></td>
+        </tr>`;
+    }).join('');
+}
+
+function previewLogColor(el) {
+    const bar = document.getElementById('logPreviewBar');
+    if (bar) bar.style.background = el.value;
+}
+
+function saveLogChannel() {
+    const form = new FormData();
+    form.append('log_channel', document.getElementById('logChannel').value);
+    fetch('/api/logging/channel', { method: 'POST', body: form })
+        .then(r => { if (r.ok) showToast('✅ Log channel saved!', 'success'); else showToast('❌ Failed', 'error'); });
+}
+
+function saveLogSettings() {
+    document.querySelectorAll('[data-log-type]').forEach(el => {
+        const key = el.dataset.logType;
+        const field = el.dataset.logField;
+        if (!_logSettings[key]) _logSettings[key] = {};
+        if (field === 'enabled') _logSettings[key].enabled = el.checked;
+        if (field === 'color') _logSettings[key].color = el.value;
+    });
+    fetch('/api/logging/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({log_settings: _logSettings}),
+    }).then(r => { if (r.ok) showToast('✅ Log settings saved!', 'success'); else showToast('❌ Failed', 'error'); });
+}
+
+// ---- Init ----
+loadLogging();
+</script>
+{% endblock %}

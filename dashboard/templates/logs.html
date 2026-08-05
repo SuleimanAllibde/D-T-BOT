@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- ===== LOGS ===== -->
+<h1>Recent Logs</h1>
+<div class="card">
+    <table class="data-table">
+        <thead><tr><th>Time</th><th>Event</th><th>Description</th></tr></thead>
+        <tbody id="logsBody"></tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadLogs() {
+    try {
+        const r = await fetch('/api/logs/recent');
+        const data = await r.json();
+        const body = document.getElementById('logsBody');
+        body.innerHTML = data.map(e =>
+            `<tr><td>${new Date(e.timestamp).toLocaleString()}</td><td>${escHtml(e.event_type)}</td><td>${escHtml(e.description)}</td></tr>`
+        ).join('');
+    } catch(e) {}
+}
+
+// ---- Init ----
+loadLogs();
+</script>
+{% endblock %}

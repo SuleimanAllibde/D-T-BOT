@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- ===== ROLES ===== -->
+<h1>Roles Manager</h1>
+
+<!-- Auto Role -->
+<div class="card">
+    <h2>Auto Role</h2>
+    <p style="color:var(--text-secondary);font-size:13px;margin:0 0 12px">Assigns this role automatically to new members when they join.</p>
+    <div class="form-row">
+        <div class="form-group" style="flex:1">
+            <label>Role</label>
+            <select id="roleAutoRole" class="form-input"></select>
+        </div>
+    </div>
+    <button onclick="saveAutoRole()" class="btn btn-primary" style="margin-top:12px">Save Auto Role</button>
+</div>
+
+<!-- Self Roles (Reaction Roles) -->
+<div class="card">
+    <h2>Self Roles Panel</h2>
+    <p style="color:var(--text-secondary);font-size:13px;margin:0 0 12px">Send a dropdown panel to a channel where members can pick roles themselves.</p>
+    <div class="form-group">
+        <label>Channel</label>
+        <select id="rolePanelChannel" class="form-input"></select>
+    </div>
+    <div class="form-group">
+        <label>Roles to include</label>
+        <div id="rolePanelRoles" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
+    </div>
+    <button onclick="sendSelfRolePanel()" class="btn btn-primary" style="margin-top:12px">Send Panel</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadRoles() {
+    const r = await fetch('/api/guild/roles');
+    const roles = await r.json();
+    const statsR = await fetch('/api/stats');
+    const stats = await statsR.json();
+
+    // Auto role dropdown
+    await populateRoleSelect('/api/guild/roles', 'roleAutoRole', stats.auto_role_id);
+
+    // Self-role checkboxes
+    const container = document.getElementById('rolePanelRoles');
+    container.innerHTML = roles.map(role =>
+        `<label style="display:flex;align-items:center;gap:6px;background:var(--bg-tertiary);padding:6px 12px;border-radius:6px;border:1px solid var(--border);cursor:pointer;font-size:13px;color:var(--text-primary)">
+            <input type="checkbox" value="${role.id}" style="accent-color:var(--accent)"> ${escHtml(role.name)}
+        </label>`
+    ).join('');
+
+    // Channel for panel
+    await populateSelect('/api/guild/channels', 'rolePanelChannel', null, '— Select channel —');
+}
+
+async function saveAutoRole() {
+    const roleId = document.getElementById('roleAutoRole').value;
+    const form = new FormData();
+    form.append('auto_role', roleId || '');
+    const r = await fetch('/update', { method: 'POST', body: form });
+    if (r.ok) showToast('✅ Auto role saved!', 'success');
+    else showToast('❌ Failed to save', 'error');
+}
+
+async function sendSelfRolePanel() {
+    const channelSel = document.getElementById('rolePanelChannel');
+    if (!channelSel.value) { showToast('Select a channel', 'error'); return; }
+    const checked = document.querySelectorAll('#rolePanelRoles input[type="checkbox"]:checked');
+    if (checked.length === 0) { showToast('Select at least one role', 'error'); return; }
+    const form = new FormData();
+    form.append('channel_id', channelSel.value);
+    checked.forEach(cb => form.append('role_ids', cb.value));
+    const r = await fetch('/api/roles/send-panel', { method: 'POST', body: form });
+    if (r.ok) showToast('✅ Self role panel sent!', 'success');
+    else { const d = await r.json(); showToast('❌ ' + (d.error || 'Failed'), 'error'); }
+}
+
+// ---- Init ----
+loadRoles();
+</script>
+{% endblock %}

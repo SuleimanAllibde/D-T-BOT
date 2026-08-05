@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- ===== SAVE BAR ===== -->
+<div id="saveBar" class="save-bar">
+    <div class="save-bar-inner">
+        <span id="saveStatus">✅ All changes saved</span>
+        <button class="btn btn-primary" onclick="saveAll()">💾 Save Now</button>
+    </div>
+</div>
+
+<!-- ===== AUTOMOD ===== -->
+<h1>AutoMod Settings</h1>
+<div class="card">
+    <div class="toggle-row">
+        <span>Anti Bad Words</span>
+        <label class="switch"><input type="checkbox" id="abw" data-setting="anti_bad_words"><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row">
+        <span>Anti Links</span>
+        <label class="switch"><input type="checkbox" id="al" data-setting="anti_links"><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row">
+        <span>Anti Spam</span>
+        <label class="switch"><input type="checkbox" id="as" data-setting="anti_spam"><span class="slider"></span></label>
+    </div>
+</div>
+<div class="card">
+    <h2>Penalty &amp; Bypass</h2>
+    <div class="form-group">
+        <label>Penalty Action</label>
+        <select id="amPenalty" class="form-input" data-setting="automod_penalty">
+            <option value="mute">Mute</option>
+            <option value="kick">Kick</option>
+            <option value="ban">Ban</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label>Bypass Roles <small>(comma-separated role IDs)</small></label>
+        <input type="text" id="amBypass" data-setting="automod_bypass_roles" placeholder="Role IDs">
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadAutoMod() {
+    try {
+        const r = await fetch('/api/stats');
+        const s = await r.json();
+        document.getElementById('abw').checked = s.anti_bad_words;
+        document.getElementById('al').checked = s.anti_links;
+        document.getElementById('as').checked = s.anti_spam;
+        document.getElementById('amPenalty').value = s.automod_penalty || 'mute';
+        document.getElementById('amBypass').value = s.automod_bypass_roles || '';
+    } catch(e) {
+        console.error('loadAutoMod error:', e);
+    }
+}
+
+async function saveAll() {
+    showSaving();
+    const amForm = new FormData();
+    amForm.append('anti_bad_words', getSettingVal('abw') ? 'on' : '');
+    amForm.append('anti_links', getSettingVal('al') ? 'on' : '');
+    amForm.append('anti_spam', getSettingVal('as') ? 'on' : '');
+    amForm.append('automod_penalty', getSettingVal('amPenalty') || 'mute');
+    amForm.append('automod_bypass_roles', getSettingVal('amBypass') || '');
+
+    try {
+        const r = await fetch('/api/automod', { method: 'POST', body: amForm });
+        if (r.ok) showSaved();
+        else { showToast('❌ Some settings failed to save', 'error'); showSaved(); }
+    } catch(e) {
+        showToast('❌ Save failed: ' + e.message, 'error');
+        showSaved();
+    }
+}
+
+document.querySelectorAll('[data-setting]').forEach(el => {
+    el.addEventListener('change', triggerAutoSave);
+    el.addEventListener('input', triggerAutoSave);
+});
+
+// ---- Init ----
+loadAutoMod();
+</script>
+{% endblock %}
