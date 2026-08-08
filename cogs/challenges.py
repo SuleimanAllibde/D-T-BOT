@@ -1,5 +1,6 @@
 import asyncio
 import random
+import re
 import time
 from datetime import datetime
 
@@ -119,12 +120,23 @@ def get_challenge_setting(guild_id: int) -> ChallengeSetting:
         sess.close()
 
 
+_STARTER_SECTION_RE = re.compile(r"\*\*كود البداية[^\n]*\*\*\s*\n+```(?:cpp)?\s*\n.*?```\s*\n*", re.DOTALL)
+
+
+def _strip_starter_section(text):
+    """Remove the embedded 'كود البداية (C++):' code block from a description,
+    since the per-language starter is already provided in the submit modal."""
+    if not text:
+        return text
+    return _STARTER_SECTION_RE.sub("", text, count=1)
+
+
 def build_challenge_embed(ch: Challenge, settings: ChallengeSetting, bot, language: str = None):
     try:
         color = int((settings.embed_color or "#5865F2").lstrip("#"), 16)
     except ValueError:
         color = 0x5865F2
-    embed = discord.Embed(title=ch.title, description=(ch.description or "")[:4090], color=color)
+    embed = discord.Embed(title=ch.title, description=_strip_starter_section((ch.description or "")[:4090]), color=color)
     if settings.thumbnail:
         embed.set_thumbnail(url=settings.thumbnail)
     embed.add_field(name="Difficulty", value=f"{DIFF_ICONS.get(ch.difficulty, '')} {ch.difficulty}", inline=True)
