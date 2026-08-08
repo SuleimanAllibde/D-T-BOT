@@ -41,6 +41,11 @@ class Bot(commands.Bot):
         # challenges (panels + auto-refreshing leaderboard) instead of this one.
         if not CHALLENGES_BOT_TOKEN:
             await self.load_extension("cogs.challenges")
+            try:
+                from utils.challenge_starter import seed_all_starter_codes
+                await asyncio.to_thread(seed_all_starter_codes)
+            except Exception as e:
+                print(f"[Setup] Could not seed language starter codes: {e}")
 
         guild = discord.Object(id=GUILD_ID)
         self.tree.copy_global_to(guild=guild)

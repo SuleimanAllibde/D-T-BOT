@@ -297,36 +297,20 @@ class ChallengeMasterView(discord.ui.View):
             return
         emoji_map = await resolve_language_emojis(interaction.guild)
         embed = build_language_embed(language, settings, interaction.client, emoji_map.get(language))
-        view = DifficultySelectView(interaction.user.id, language, bot=interaction.client)
+        view = DifficultyButtonsView(interaction.user.id, language, bot=interaction.client)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
-class DifficultySelect(discord.ui.Select):
-    def __init__(self):
-        options = [
-            discord.SelectOption(label="Easy", value="Easy", description="Warm-up challenges", emoji="🟢"),
-            discord.SelectOption(label="Medium", value="Medium", description="Balanced challenges", emoji="🟡"),
-            discord.SelectOption(label="Hard", value="Hard", description="Advanced challenges", emoji="🔴"),
-        ]
-        super().__init__(
-            placeholder="Select difficulty...",
-            min_values=1,
-            max_values=1,
-            options=options,
-            custom_id="dt_chal_diff",
-        )
+class DifficultyButtonsView(discord.ui.View):
+    """Per-user difficulty buttons shown after a language is picked."""
 
-    async def callback(self, interaction: discord.Interaction):
-        await self.view._on_difficulty(interaction, self.values[0])
-
-
-class DifficultySelectView(discord.ui.View):
     def __init__(self, user_id: int, language: str, bot=None):
         super().__init__(timeout=900)
         self.user_id = user_id
         self.language = language
         self.bot = bot
-        self.add_item(DifficultySelect())
+        for d in ("Easy", "Medium", "Hard"):
+            self.add_item(DifficultyButton(d))
 
     async def _on_difficulty(self, interaction: discord.Interaction, difficulty: str):
         if interaction.user.id != self.user_id:

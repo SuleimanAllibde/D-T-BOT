@@ -8,6 +8,7 @@ from discord.ext import commands
 from config import CHALLENGES_BOT_TOKEN, GUILD_ID
 from database import get_session, ChallengeSetting
 from cogs.challenges import build_leaderboard_embed, register_persistent_views
+from utils.challenge_starter import seed_all_starter_codes
 
 challenges_bot: "ChallengesBot | None" = None
 challenges_bot_status = {
@@ -57,6 +58,11 @@ class ChallengesBot(commands.Bot):
     async def setup_hook(self):
         await self.load_extension("cogs.challenges")
         register_persistent_views(self)
+
+        try:
+            await asyncio.to_thread(seed_all_starter_codes)
+        except Exception as e:
+            print(f"[ChallengesBot] WARNING: could not seed language starter codes: {e}")
 
         guild = discord.Object(id=GUILD_ID)
         try:
