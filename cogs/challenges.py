@@ -51,6 +51,15 @@ LANGUAGE_EMOJI_NAMES = {
     "Go": "dt_go",
 }
 
+LANG_SLUGS = {
+    "C++": "cpp",
+    "Python": "python",
+    "JavaScript": "js",
+    "Java": "java",
+    "C#": "csharp",
+    "Go": "go",
+}
+
 # Languages whose solutions require boilerplate (main/class wrapper) — these get
 # a starter code. Scripting languages (Python, JavaScript) need none.
 NEEDS_STARTER = {"C++", "Java", "C#", "Go"}
@@ -263,38 +272,71 @@ class DifficultyButton(discord.ui.Button):
         await self.view._on_difficulty(interaction, self.label)
 
 
-class LanguageSelect(discord.ui.Select):
-    def __init__(self, emoji_map: dict):
-        options = []
-        for lang in LANGUAGES:
-            kwargs = {
-                "label": lang,
-                "value": lang,
-                "description": LANGUAGE_DESCRIPTIONS.get(lang),
-            }
-            emoji = emoji_map.get(lang) if emoji_map else None
-            if emoji:
-                kwargs["emoji"] = emoji
-            options.append(discord.SelectOption(**kwargs))
+class LanguageButton(discord.ui.Button):
+    def __init__(self, language: str, emoji=None, row=None):
         super().__init__(
-            placeholder="Select a programming language...",
-            min_values=1,
-            max_values=1,
-            options=options,
-            custom_id="dt_chal_lang",
+            label=language,
+            style=discord.ButtonStyle.secondary,
+            emoji=emoji,
+            row=row,
+            custom_id=f"dt_chal_lang:{LANG_SLUGS.get(language, language.lower())}",
         )
 
     async def callback(self, interaction: discord.Interaction):
-        await self.view._on_language(interaction, self.values[0])
+        await self.view._on_language(interaction, self.label)
+
+
+class BackButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="← Languages",
+            style=discord.ButtonStyle.secondary,
+            custom_id="dt_chal_back",
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        await self.view._on_back(interaction)
 
 
 class ChallengeMasterView(discord.ui.View):
-    """Persistent panel: pick a language -> difficulty -> random challenge."""
+    """Persistent panel: language buttons -> difficulty buttons -> random challenge.
 
-    def __init__(self, bot=None, emoji_map: dict = None):
+    The panel message is edited in place so the chosen language stays visible
+    on the panel. After a language is picked the session is bound to that user;
+    everyone else gets an "another user" notice until the panel is reset."""
+
+    def __init__(self, bot=None, emoji_map: dict = None, *, mode="languages",
+                 language: str = None, user_id: int = None, _all=False):
         super().__init__(timeout=None)
         self.bot = bot
-        self.add_item(LanguageSelect(emoji_map or {}))
+        self.mode = mode
+        self.language = language
+        self.user_id = user_id
+        emoji_map = emoji_map or {}
+        if _all:
+            for lang in LANGUAGES:
+                self.add_item(LanguageButton(lang))
+            for d in ("Easy", "Medium", "Hard"):
+                self.add_item(DifficultyButton(d))
+            self.add_item(BackButton())
+        elif mode == "difficulty":
+            for d in ("Easy", "Medium", "Hard"):
+                self.add_item(DifficultyButton(d))
+            self.add_item(BackButton())
+        else:
+            for i, lang in enumerate(LANGUAGES):
+                self.add_item(LanguageButton(lang, emoji_map.get(lang), row=0 if i < 3 else 1))
+
+    async def _build_master_view(self, interaction: discord.Interaction):
+        sess = get_session()
+        try:
+            settings = sess.get(ChallengeSetting, interaction.guild_id)
+        finally:
+            sess.close()
+        emoji_map = await resolve_language_emojis(interaction.guild)
+        embed = build_master_embed(settings, interaction.client)
+        view = ChallengeMasterView(bot=interaction.client, emoji_map=emoji_map)
+        return embed, view
 
     async def _on_language(self, interaction: discord.Interaction, language: str):
         sess = get_session()
@@ -311,22 +353,16 @@ class ChallengeMasterView(discord.ui.View):
             return
         emoji_map = await resolve_language_emojis(interaction.guild)
         embed = build_language_embed(language, settings, interaction.client, emoji_map.get(language))
-        view = DifficultyButtonsView(interaction.user.id, language, bot=interaction.client)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-
-
-class DifficultyButtonsView(discord.ui.View):
-    """Per-user difficulty buttons shown after a language is picked."""
-
-    def __init__(self, user_id: int, language: str, bot=None):
-        super().__init__(timeout=900)
-        self.user_id = user_id
-        self.language = language
-        self.bot = bot
-        for d in ("Easy", "Medium", "Hard"):
-            self.add_item(DifficultyButton(d))
+        view = ChallengeMasterView(bot=interaction.client, mode="difficulty", language=language, user_id=interaction.user.id)
+        await interaction.response.edit_message(embed=embed, view=view)
 
     async def _on_difficulty(self, interaction: discord.Interaction, difficulty: str):
+        if not self.language:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            embed, view = await self._build_master_view(interaction)
+            await interaction.edit_original_response(embed=embed, view=view)
+            await interaction.followup.send("⚠️ The panel was reset — pick a language again.", ephemeral=True)
+            return
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("❌ This challenge session belongs to another user.", ephemeral=True)
             return
@@ -345,6 +381,19 @@ class DifficultyButtonsView(discord.ui.View):
             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         finally:
             sess.close()
+
+    async def _on_back(self, interaction: discord.Interaction):
+        if not self.language:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            embed, view = await self._build_master_view(interaction)
+            await interaction.edit_original_response(embed=embed, view=view)
+            await interaction.followup.send("⚠️ The panel was reset — pick a language again.", ephemeral=True)
+            return
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ This challenge session belongs to another user.", ephemeral=True)
+            return
+        embed, view = await self._build_master_view(interaction)
+        await interaction.response.edit_message(embed=embed, view=view)
 
 
 class LegacyChallengeMasterView(discord.ui.View):
@@ -596,8 +645,8 @@ def _clip(text, n=1000):
 
 
 def register_persistent_views(bot: commands.Bot):
-    bot.add_view(ChallengeMasterView(bot=bot))
     bot.add_view(LegacyChallengeMasterView(DIFFICULTIES, bot=bot))
+    bot.add_view(ChallengeMasterView(bot=bot, _all=True))
 
 
 class Challenges(commands.Cog):
