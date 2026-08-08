@@ -20,6 +20,7 @@ GODBOLT_COMPILERS = {
     "C#": ("dotnet80csharpmono", "Program.cs", True),
     "Go": ("gccgo142", "main.go", True),
     "Rust": ("r1900", "main.rs", True),
+    "Python": ("python314", "main.py", False),
 }
 
 LANGUAGE_MAP = {
