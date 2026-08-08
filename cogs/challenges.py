@@ -50,13 +50,15 @@ LANGUAGE_EMOJI_NAMES = {
     "Go": "dt_go",
 }
 
+# Languages whose solutions require boilerplate (main/class wrapper) — these get
+# a starter code. Scripting languages (Python, JavaScript) need none.
+NEEDS_STARTER = {"C++", "Java", "C#", "Go"}
+
 STARTER_TEMPLATES = {
     "C++": '#include <iostream>\nusing namespace std;\n\nint main() {\n    int n;\n    cin >> n;\n    cout << n << endl;\n    return 0;\n}\n',
-    "Python": 'import sys\n\ndef main():\n    data = sys.stdin.read().split()\n    # write your solution here\n    print(data)\n\nif __name__ == "__main__":\n    main()\n',
-    "JavaScript": 'const readline = require("readline");\nconst rl = readline.createInterface({ input: process.stdin });\n\nrl.on("line", (line) => {\n    // write your solution here\n    console.log(line);\n});\n',
-    "Java": 'import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // write your solution here\n        while (sc.hasNextLine()) {\n            System.out.println(sc.nextLine());\n        }\n    }\n}\n',
-    "C#": 'using System;\n\nclass Program {\n    static void Main() {\n        string line;\n        while ((line = Console.ReadLine()) != null) {\n            // write your solution here\n            Console.WriteLine(line);\n        }\n    }\n}\n',
-    "Go": 'package main\n\nimport (\n    "bufio"\n    "fmt"\n    "os"\n)\n\nfunc main() {\n    scanner := bufio.NewScanner(os.Stdin)\n    for scanner.Scan() {\n        // write your solution here\n        fmt.Println(scanner.Text())\n    }\n}\n',
+    "Java": 'import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // write your solution here\n    }\n}\n',
+    "C#": 'using System;\n\nclass Program {\n    static void Main() {\n        // write your solution here\n    }\n}\n',
+    "Go": 'package main\n\nfunc main() {\n    // write your solution here\n}\n',
 }
 
 _emoji_cache = {}
@@ -380,14 +382,16 @@ class ChallengeSessionView(discord.ui.View):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("❌ This session belongs to someone else.", ephemeral=True)
             return
-        starter = STARTER_TEMPLATES.get(self.language, "")
-        sess = get_session()
-        try:
-            row = sess.query(ChallengeStarterCodeModel).filter_by(challenge_id=self.challenge.id, language=self.selected_language).first()
-            if row and row.code:
-                starter = row.code
-        finally:
-            sess.close()
+        starter = ""
+        if self.language in NEEDS_STARTER:
+            starter = STARTER_TEMPLATES.get(self.language, "")
+            sess = get_session()
+            try:
+                row = sess.query(ChallengeStarterCodeModel).filter_by(challenge_id=self.challenge.id, language=self.selected_language).first()
+                if row and row.code:
+                    starter = row.code
+            finally:
+                sess.close()
         modal = CodeSubmitModal(self.challenge, self.selected_language, starter, self.start_time, interaction.user.id, interaction.guild_id)
         await interaction.response.send_modal(modal)
 

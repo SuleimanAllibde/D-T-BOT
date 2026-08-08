@@ -4,9 +4,14 @@ from database import get_session, Challenge, ChallengeTestCase, ChallengeStarter
 
 _INT_RE = re.compile(r"-?\d+")
 
-# Languages given a starter code by the seeder. Existing C++ starter codes are
-# preserved exactly as they are and are never modified by this module.
-STARTER_LANGUAGES = ["Python", "Java", "JavaScript", "C#", "Go"]
+# Languages that need a starter code skeleton (require boilerplate such as a
+# main/class wrapper) — the seeder guarantees they have one. Existing C++ starter
+# codes are preserved exactly as they are and are never modified by this module.
+STARTER_LANGUAGES = ["Java", "C#", "Go"]
+
+# Scripting languages that need no boilerplate — the solver writes the logic
+# directly, so no starter code is stored or pre-filled for them.
+NO_STARTER_LANGUAGES = ["Python", "JavaScript"]
 
 # Starter code templates keyed by input mode:
 #   "numeric" -> reads every integer from stdin in order
@@ -14,17 +19,6 @@ STARTER_LANGUAGES = ["Python", "Java", "JavaScript", "C#", "Go"]
 # The solver writes their algorithm in the marked section.
 STARTER_TEMPLATES = {
     "numeric": {
-        "Python": (
-            'import sys\n'
-            '\n'
-            'def main():\n'
-            '    data = list(map(int, sys.stdin.read().split()))\n'
-            '    # data contains every integer from stdin in order\n'
-            '    # write your solution here\n'
-            '\n'
-            'if __name__ == "__main__":\n'
-            '    main()\n'
-        ),
         "Java": (
             'import java.util.*;\n'
             '\n'
@@ -39,16 +33,6 @@ STARTER_TEMPLATES = {
             '        // write your solution here\n'
             '    }\n'
             '}\n'
-        ),
-        "JavaScript": (
-            'const fs = require("fs");\n'
-            '\n'
-            'const data = fs.readFileSync(0, "utf8")\n'
-            '    .trim()\n'
-            '    .split(/\\s+/)\n'
-            '    .map(Number);\n'
-            '// data contains every integer from stdin in order\n'
-            '// write your solution here\n'
         ),
         "C#": (
             'using System;\n'
@@ -90,17 +74,6 @@ STARTER_TEMPLATES = {
         ),
     },
     "string": {
-        "Python": (
-            'import sys\n'
-            '\n'
-            'def main():\n'
-            '    lines = sys.stdin.read().splitlines()\n'
-            '    # lines contains every line from stdin\n'
-            '    # write your solution here\n'
-            '\n'
-            'if __name__ == "__main__":\n'
-            '    main()\n'
-        ),
         "Java": (
             'import java.util.*;\n'
             '\n'
@@ -115,13 +88,6 @@ STARTER_TEMPLATES = {
             '        // write your solution here\n'
             '    }\n'
             '}\n'
-        ),
-        "JavaScript": (
-            'const fs = require("fs");\n'
-            '\n'
-            'const lines = fs.readFileSync(0, "utf8").split("\\n");\n'
-            '// lines contains every line from stdin\n'
-            '// write your solution here\n'
         ),
         "C#": (
             'using System;\n'
@@ -179,13 +145,24 @@ def _detect_modes(sess) -> dict:
 def seed_all_starter_codes() -> dict:
     """Generate per-language starter code for every challenge that is missing one.
 
-    C++ rows are never touched. Existing rows for other languages are kept
-    (so dashboard-edited starter codes are preserved). Idempotent.
-    Returns a dict of {language: rows_inserted}.
+    C++ rows are never touched. Existing rows for other starter languages are
+    kept (so dashboard-edited starter codes are preserved). Any stored starter
+    for a no-starter scripting language is removed so nothing gets pre-filled.
+    Idempotent. Returns a dict of {language: rows_inserted}.
     """
     sess = get_session()
     inserted = {lang: 0 for lang in STARTER_LANGUAGES}
+    removed = {lang: 0 for lang in NO_STARTER_LANGUAGES}
     try:
+        if NO_STARTER_LANGUAGES:
+            rows = (
+                sess.query(ChallengeStarterCodeModel)
+                .filter(ChallengeStarterCodeModel.language.in_(NO_STARTER_LANGUAGES))
+                .all()
+            )
+            for row in rows:
+                sess.delete(row)
+                removed[row.language] += 1
         challenges = sess.query(Challenge).all()
         existing = {
             (row.challenge_id, row.language)
@@ -208,4 +185,5 @@ def seed_all_starter_codes() -> dict:
         sess.commit()
     finally:
         sess.close()
+    print(f"[challenge_starter] seeded {inserted} / removed {removed}")
     return inserted
